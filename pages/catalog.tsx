@@ -1,73 +1,110 @@
-// pages/catalog.tsx
-import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import Navbar from "../components/Navbar";
+import { supabase } from "../lib/supabase";
 
-type Shoe = {
+interface Shoe {
   id: number;
   name: string;
-  price: number;
-  image_url: string | null;
-  external_url: string;
-  gender: string;
   model_line: string;
-  brand_id: number;
-  category_id: number;
-};
+  price: number;
+  image_url: string;
+  gender: string;
+}
 
-export default function Catalog() {
+export default function CatalogPage() {
   const [shoes, setShoes] = useState<Shoe[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchShoes() {
-      const { data, error } = await supabase.from('shoe').select('*');
-      if (error) {
-        console.error('Error fetching shoes:', error);
-        setError(error.message);
-      } else {
-        setShoes(data);
-      }
+      const { data, error } = await supabase
+        .from("shoe")
+        .select("*")
+        .order("id", { ascending: true });
+
+      if (error) console.error(error);
+      else setShoes(data || []);
+
+      setLoading(false);
     }
     fetchShoes();
   }, []);
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-10">
-      <h1 className="text-4xl font-bold mb-8 text-center">Shoe Catalog</h1>
-      {error && <p className="text-red-500 text-center">{error}</p>}
+    <div className="min-h-screen bg-white">
+      <Navbar />
 
-      {shoes.length === 0 && !error && (
-        <p className="text-gray-500 text-center">No shoes available yet. Try adding some sample data!</p>
-      )}
+      {/* HERO */}
+      <section
+        className="bg-cover bg-center h-56 md:h-96"
+        style={{ backgroundImage: "url('/images/catalog-hero.jpg')" }}
+      >
+        <div className="bg-black/50 h-full w-full flex items-center justify-center">
+          <h1 className="text-4xl md:text-6xl font-bold text-white">
+            Explore Our Collection
+          </h1>
+        </div>
+      </section>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-        {shoes.map((shoe) => (
-          <div
-            key={shoe.id}
-            className="border rounded-lg shadow hover:shadow-lg transition overflow-hidden"
-          >
-            <img
-              src={shoe.image_url || 'https://via.placeholder.com/300?text=No+Image'}
-              alt={shoe.name}
-              className="w-full h-64 object-cover"
-            />
-            <div className="p-4">
-              <h2 className="font-semibold text-lg">{shoe.name}</h2>
-              <p className="text-gray-500">{shoe.model_line || 'Model not specified'}</p>
-              <p className="text-gray-500">{shoe.gender ? `Gender: ${shoe.gender}` : ''}</p>
-              <p className="font-bold text-xl mt-2">${shoe.price?.toFixed(2) || '0.00'}</p>
-              <a
-                href={shoe.external_url || '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-3 inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-              >
-                Buy on Brand Site
-              </a>
+      {/* CONTENT */}
+      <main className="max-w-7xl mx-auto px-6 py-10">
+        {loading && (
+          <p className="text-center text-gray-600">Loading shoes...</p>
+        )}
+
+        {!loading && shoes.length === 0 && (
+          <p className="text-center text-gray-500">No shoes available.</p>
+        )}
+
+        {/* ✅ GRID */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+          {shoes.map((shoe) => (
+            <div
+              key={shoe.id}
+              className="group bg-white rounded-2xl overflow-hidden transition hover:shadow-xl"
+            >
+              {/* ✅ FIXED IMAGE */}
+              <Link href={`/shoes/${shoe.id}`}>
+                <div className="aspect-square bg-gray-100 flex items-center justify-center overflow-hidden">
+                  <img
+                    src={shoe.image_url}
+                    alt={shoe.name}
+                    className="w-full h-full object-contain p-6 transition-transform duration-300 group-hover:scale-105"
+                  />
+                </div>
+              </Link>
+
+              {/* INFO */}
+              <div className="p-4">
+                <h3 className="font-semibold text-gray-900 text-lg">
+                  {shoe.name}
+                </h3>
+
+                <p className="text-sm text-gray-500 mt-1">
+                  {shoe.model_line}
+                </p>
+
+                <p className="text-sm text-gray-500">
+                  {shoe.gender}
+                </p>
+
+                <div className="flex justify-between items-center mt-3">
+                  <span className="font-bold text-lg">
+                    ${shoe.price}
+                  </span>
+
+                  <Link href={`/shoes/${shoe.id}`}>
+                    <button className="text-sm bg-black text-white px-3 py-1 rounded hover:bg-gray-800">
+                      View
+                    </button>
+                  </Link>
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </main>
     </div>
   );
 }

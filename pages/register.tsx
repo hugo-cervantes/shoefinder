@@ -1,26 +1,24 @@
-import Link from 'next/link';
+import Navbar from '../components/Navbar';
 
 export default function Register() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="max-w-md w-full bg-white p-8 rounded-xl shadow-lg">
-        <h1 className="text-2xl font-bold text-center mb-6">Create an Account</h1>
-        <form className="space-y-4">
-          <input type="text" placeholder="First Name" className="w-full p-3 border rounded-md" />
-          <input type="text" placeholder="Last Name" className="w-full p-3 border rounded-md" />
-          <input type="email" placeholder="Email" className="w-full p-3 border rounded-md" />
-          <input type="password" placeholder="Password" className="w-full p-3 border rounded-md" />
-          <button type="submit" className="w-full bg-gray-900 text-white p-3 rounded-md hover:bg-gray-700 transition">
-            Register
+    <div>
+      <Navbar />
+
+      <div className="flex justify-center items-center h-[70vh]">
+        <div className="w-80 border p-6 rounded-xl">
+          <h1 className="text-xl font-bold mb-4">Register</h1>
+
+          <input placeholder="First Name" className="w-full border p-2 mb-2 rounded" />
+          <input placeholder="Last Name" className="w-full border p-2 mb-2 rounded" />
+          <input placeholder="Email" className="w-full border p-2 mb-2 rounded" />
+          <input placeholder="Password" type="password" className="w-full border p-2 mb-4 rounded" />
+
+          <button className="w-full bg-black text-white py-2 rounded">
+            Create Account
           </button>
-        </form>
-        <p className="text-center mt-4">
-          Already have an account?{' '}
-          <Link href="/login" className="text-blue-500 hover:underline">
-            Login
-          </Link>
-        </p>
+        </div>
       </div>
-    </main>
+    </div>
   );
 }
