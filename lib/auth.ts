@@ -45,6 +45,8 @@ export async function register(email: string, password: string, firstName: strin
       last_name: lastName,
     });
 
+    console.log('Inserting additional user information...');
+
     if (insertError) {
       console.error('Error inserting additional user information:', insertError);
       return null;
