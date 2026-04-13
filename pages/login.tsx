@@ -1,31 +1,36 @@
-import { useState } from 'react';
-import { supabase } from '../lib/supabase';
-import Navbar from '../components/Navbar';
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { supabase } from '../lib/supabase'
+import Navbar from '../components/Navbar'
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const router = useRouter()
 
-  const handleLogin = async () => {
+  const [email, setEmail] = useState<string>('')
+  const [password, setPassword] = useState<string>('')
+
+  const handleLogin = async (): Promise<void> => {
     try {
-      console.log('Logging in user...');
       const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
-      });
+      })
 
       if (error) {
-        console.error('Error logging in:', error);
-        // Show error message
-      } else {
-        console.log('User logged in successfully!');
-        // Redirect to home page or show success message
+        console.error('Error logging in:', error.message)
+        return
       }
+
+      // redirect on success
+      router.push('/')
+      router.refresh()
     } catch (error) {
-      console.error('Error logging in:', error);
-      // Show error message
+      console.error('Error logging in:', error)
     }
-  };
+  }
 
   return (
     <div>
@@ -41,6 +46,7 @@ export default function Login() {
             onChange={(e) => setEmail(e.target.value)}
             className="w-full border p-2 mb-3 rounded"
           />
+
           <input
             placeholder="Password"
             type="password"
@@ -49,11 +55,22 @@ export default function Login() {
             className="w-full border p-2 mb-4 rounded"
           />
 
-          <button onClick={handleLogin} className="w-full bg-black text-white py-2 rounded">
+          <button
+            onClick={handleLogin}
+            className="w-full bg-black text-white py-2 rounded"
+          >
             Login
           </button>
+
+          {/* SIGNUP LINK */}
+          <p className="text-sm text-center mt-4">
+            Don&apos;t have an account?{' '}
+            <Link href="/register" className="text-blue-500 hover:underline">
+              Sign up
+            </Link>
+          </p>
         </div>
       </div>
     </div>
-  );
+  )
 }
