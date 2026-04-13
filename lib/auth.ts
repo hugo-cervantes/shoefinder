@@ -38,7 +38,7 @@ export async function register(email: string, password: string, firstName: strin
     }
 
     // Store additional user information in the user_profile table
-    const { error: insertError } = await supabase.from('public.user_profile').insert({
+    const { error: insertError } = await supabase.from('user_profile').insert({
       id: null, // Supabase will generate a unique ID for you
       email,
       first_name: firstName,
