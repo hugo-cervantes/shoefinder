@@ -25,8 +25,8 @@ export default function Login() {
       }
 
       // redirect on success
+      await supabase.auth.getSession()
       router.push('/')
-      router.refresh()
     } catch (error) {
       console.error('Error logging in:', error)
     }
