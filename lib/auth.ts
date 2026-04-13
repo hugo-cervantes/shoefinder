@@ -1,0 +1,45 @@
+import { createClient } from '@supabase/supabase-js';
+
+// Use environment variables for safety
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+export async function login(email: string, password: string) {
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error('Error logging in:', error);
+      return null;
+    }
+
+    return data.session;
+  } catch (error) {
+    console.error('Error logging in:', error);
+    return null;
+  }
+}
+
+export async function register(email: string, password: string) {
+  try {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error('Error registering:', error);
+      return null;
+    }
+
+    return data.user;
+  } catch (error) {
+    console.error('Error registering:', error);
+    return null;
+  }
+}
