@@ -33,7 +33,7 @@ export default function Home() {
       <Navbar />
       <section
         className="relative h-[80vh] flex flex-col justify-center items-center text-center bg-cover bg-center"
-        style={{ backgroundImage: "url('/images/hero.jpg')" }}
+        style={{ backgroundImage: "url('/images/home.jpg')" }}
       >
         {/* Overlay */}
         <div className="absolute inset-0 bg-black/50"></div>
