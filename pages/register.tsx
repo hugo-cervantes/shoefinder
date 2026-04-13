@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { register } from '../lib/auth';
+import { register } from '../lib/supabase';
 import Navbar from '../components/Navbar';
 
 export default function Register() {
