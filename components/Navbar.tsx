@@ -1,83 +1,48 @@
-import { createClient } from '@supabase/supabase-js';
+import Link from 'next/link';
+import { useState } from 'react';
+import { FaUser } from 'react-icons/fa';
 
-// Use environment variables for safety
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+export default function Navbar() {
+  const [showMenu, setShowMenu] = useState(false);
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+  const handleMenuToggle = () => {
+    setShowMenu(!showMenu);
+  };
 
-export async function fetchShoes() {
-  const { data, error } = await supabase
-    .from('shoe')
-    .select(`
-      id,
-      name,
-      model_line,
-      price,
-      size,
-      gender,
-      brand:brand_id(name),
-      category:category_id(name)
-    `);
+  const handleLogout = () => {
+    // Perform logout logic here
+    // ...
+    setShowMenu(false);
+  };
 
-  if (error) {
-    console.error('Error fetching shoes:', error);
-    return [];
-  }
+  return (
+    <nav className="flex justify-between items-center px-8 py-4 border-b">
+      <h1 className="text-2xl font-bold">SoleMate</h1>
 
-  return data;
-}
+      <div className="flex gap-6 text-sm font-medium">
+        <Link href="/">Home</Link>
+        <Link href="/catalog">Catalog</Link>
+      </div>
 
-export async function login(email: string, password: string) {
-  try {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      console.error('Error logging in:', error);
-      return null;
-    }
-
-    return data.session;
-  } catch (error) {
-    console.error('Error logging in:', error);
-    return null;
-  }
-}
-
-export async function register(email: string, password: string, firstName: string, lastName: string) {
-  try {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    if (error) {
-      console.error('Error registering:', error);
-      return null;
-    }
-
-    const { data: userData } = await supabase.auth.getUser();
-    // Store additional user information in the user_profile table
-    const { error: insertError } = await supabase.from('user_profile').insert({
-      id: userData.user?.id,
-      email,
-      first_name: firstName,
-      last_name: lastName,
-    });
-
-    console.log('Inserting additional user information...');
-
-    if (insertError) {
-      console.error('Error inserting additional user information:', insertError);
-      return null;
-    }
-
-    return 'User registered successfully!';
-  } catch (error) {
-    console.error('Error registering:', error);
-    return null;
-  }
+      {showMenu ? (
+        <div className="relative">
+          <FaUser className="cursor-pointer" onClick={handleMenuToggle} />
+          <div
+            className={`absolute top-full right-0 mt-2 p-4 bg-white border border-gray-300 rounded shadow-lg ${
+              showMenu ? 'block' : 'hidden'
+            }`}
+          >
+            <h3 className="text-sm font-medium">User Name</h3>
+            <button className="text-sm font-medium text-blue-500 hover:text-blue-700" onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
+        </div>
+      ) : (
+        <Link href="/login">
+          <button className="text-sm font-medium text-blue-500 hover:text-blue-700">Login</button>
+        </Link>
+      )}
+    </nav>
+  );
 }
