@@ -7,27 +7,29 @@ import type { User } from '@supabase/supabase-js'
 
 export default function Navbar() {
   const [user, setUser] = useState<User | null>(null)
-  const [open, setOpen] = useState<boolean>(false)
+  const [loading, setLoading] = useState(true)
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    // Get current session on load
-    supabase.auth.getUser().then(({ data }) => {
+    const init = async () => {
+      const { data } = await supabase.auth.getUser()
       setUser(data.user ?? null)
-    })
+      setLoading(false)
+    }
 
-    // Listen for login/logout changes
+    init()
+
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
+      setLoading(false)
     })
 
-    const { subscription } = data
-
     return () => {
-      subscription.unsubscribe()
+      data.subscription.unsubscribe()
     }
   }, [])
 
-  const handleLogout = async (): Promise<void> => {
+  const handleLogout = async () => {
     await supabase.auth.signOut()
     setOpen(false)
   }
@@ -40,24 +42,24 @@ export default function Navbar() {
         <Link href="/">Home</Link>
         <Link href="/catalog">Catalog</Link>
 
-        {!user ? (
+        {/* IMPORTANT: prevents login flash */}
+        {loading ? (
+          <div className="text-gray-400">...</div>
+        ) : !user ? (
           <Link href="/login">Login</Link>
         ) : (
           <div className="relative">
-            <button
-              onClick={() => setOpen(!open)}
-              className="hover:underline"
-            >
+            <button onClick={() => setOpen(!open)}>
               Account
             </button>
 
             {open && (
               <div className="absolute right-0 mt-2 w-48 border bg-white shadow-md rounded-md p-3 z-50">
-                <p className="text-sm mb-2">{user?.email}</p>
+                <p className="text-sm mb-2">{user.email}</p>
 
                 <button
                   onClick={handleLogout}
-                  className="text-red-500 text-sm hover:underline"
+                  className="text-red-500 text-sm"
                 >
                   Logout
                 </button>
