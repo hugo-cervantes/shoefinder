@@ -31,10 +31,9 @@ export default function Home() {
   return (
     <div>
       <Navbar />
-
       <section
         className="relative h-[80vh] flex flex-col justify-center items-center text-center bg-cover bg-center"
-        style={{ backgroundImage: "url('/images/home.jpg')" }}
+        style={{ backgroundImage: "url('/images/hero.jpg')" }}
       >
         {/* Overlay */}
         <div className="absolute inset-0 bg-black/50"></div>
@@ -53,6 +52,14 @@ export default function Home() {
               Shop Now
             </button>
           </Link>
+
+          {user && (
+            <Link href="/questionnaire">
+              <button className="bg-blue-600 text-white px-6 py-3 rounded-full hover:bg-blue-700 transition">
+                Take Questionnaire
+              </button>
+            </Link>
+          )}
         </div>
       </section>
     </div>
