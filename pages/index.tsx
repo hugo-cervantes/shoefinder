@@ -1,7 +1,32 @@
+import { useEffect, useState } from 'react';
 import Navbar from '../components/Navbar';
 import Link from 'next/link';
+import { supabase } from '../lib/supabase';
 
 export default function Home() {
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    // Get current session
+    const getUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user);
+    };
+
+    getUser();
+
+    // Listen for auth changes (login/logout)
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setUser(session?.user ?? null);
+      }
+    );
+
+    return () => {
+      listener.subscription.unsubscribe();
+    };
+  }, []);
+
   return (
     <div>
       <Navbar />
@@ -14,11 +39,21 @@ export default function Home() {
           Compare brands. Find your fit. Discover your style.
         </p>
 
-        <Link href="/catalog">
-          <button className="bg-black text-white px-6 py-3 rounded-full hover:bg-gray-800 transition">
-            Shop Now
-          </button>
-        </Link>
+        <div className="flex gap-4">
+          <Link href="/catalog">
+            <button className="bg-black text-white px-6 py-3 rounded-full hover:bg-gray-800 transition">
+              Shop Now
+            </button>
+          </Link>
+
+          {user && (
+            <Link href="/questionnaire">
+              <button className="bg-blue-600 text-white px-6 py-3 rounded-full hover:bg-blue-700 transition">
+                Take Questionnaire
+              </button>
+            </Link>
+          )}
+        </div>
       </section>
     </div>
   );
