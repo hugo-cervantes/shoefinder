@@ -38,7 +38,7 @@ export default function CatalogPage() {
       {/* HERO */}
       <section
         className="bg-cover bg-center h-56 md:h-96"
-        style={{ backgroundImage: "url('/images/catalog-hero.jpg')" }}
+        style={{ backgroundImage: "url('/images/sneakers.jpg')" }}
       >
         <div className="bg-black/50 h-full w-full flex items-center justify-center">
           <h1 className="text-4xl md:text-6xl font-bold text-white">
