@@ -10,7 +10,7 @@ export default function Questionnaire() {
           Questionnaire
         </h1>
         <p className="text-gray-600">
-          This is where your questionnaire will go.
+          Hugo is a bum.
         </p>
       </section>
     </div>
