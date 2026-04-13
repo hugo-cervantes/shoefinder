@@ -25,9 +25,9 @@ export async function login(email: string, password: string) {
   }
 }
 
-export async function register(email: string, password: string) {
+export async function register(email: string, password: string, firstName: string, lastName: string) {
   try {
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
     });
@@ -37,7 +37,20 @@ export async function register(email: string, password: string) {
       return null;
     }
 
-    return data.user;
+    // Store additional user information in the user_profile table
+    const { error: insertError } = await supabase.from('public.user_profile').insert({
+      id: null, // Supabase will generate a unique ID for you
+      email,
+      first_name: firstName,
+      last_name: lastName,
+    });
+
+    if (insertError) {
+      console.error('Error inserting additional user information:', insertError);
+      return null;
+    }
+
+    return 'User registered successfully!';
   } catch (error) {
     console.error('Error registering:', error);
     return null;
