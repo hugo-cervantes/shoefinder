@@ -32,28 +32,27 @@ export default function Home() {
     <div>
       <Navbar />
 
-      <section className="h-[80vh] flex flex-col justify-center items-center text-center bg-gray-100">
-        <h1 className="text-5xl font-bold mb-4">
-          Find Your Perfect Shoe
-        </h1>
-        <p className="text-lg text-gray-600 mb-6">
-          Compare brands. Find your fit. Discover your style.
-        </p>
+      <section
+        className="relative h-[80vh] flex flex-col justify-center items-center text-center bg-cover bg-center"
+        style={{ backgroundImage: "url('/images/hero.jpg')" }}
+      >
+        {/* Overlay */}
+        <div className="absolute inset-0 bg-black/50"></div>
 
-        <div className="flex gap-4">
+        {/* Content */}
+        <div className="relative z-10">
+          <h1 className="text-5xl font-bold mb-4 text-white">
+            Find Your Perfect Shoe
+          </h1>
+          <p className="text-lg text-gray-200 mb-6">
+            Compare brands. Find your fit. Discover your style.
+          </p>
+
           <Link href="/catalog">
             <button className="bg-black text-white px-6 py-3 rounded-full hover:bg-gray-800 transition">
               Shop Now
             </button>
           </Link>
-
-          {user && (
-            <Link href="/questionnaire">
-              <button className="bg-blue-600 text-white px-6 py-3 rounded-full hover:bg-blue-700 transition">
-                Take Questionnaire
-              </button>
-            </Link>
-          )}
         </div>
       </section>
     </div>
