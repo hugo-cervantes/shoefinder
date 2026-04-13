@@ -48,7 +48,7 @@ export default function Home() {
           </p>
 
           <Link href="/catalog">
-            <button className="bg-black text-white px-6 py-3 rounded-full hover:bg-gray-800 transition">
+            <button className="bg-white text-black px-6 py-3 rounded-full hover:bg-gray-800 transition">
               Shop Now
             </button>
           </Link>
