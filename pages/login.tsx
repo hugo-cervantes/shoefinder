@@ -1,34 +1,36 @@
 'use client'
 
-import { useState } from 'react';
-import { useRouter } from 'next/router';
-import { register } from '../lib/supabase';
-import Navbar from '../components/Navbar';
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { supabase } from '../lib/supabase'
+import Navbar from '../components/Navbar'
 
-export default function Register() {
-  const router = useRouter();
+export default function Login() {
+  const router = useRouter()
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState<string>('')
+  const [password, setPassword] = useState<string>('')
 
-  const handleRegister = async () => {
+  const handleLogin = async (): Promise<void> => {
     try {
-      console.log('Registering user...');
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
 
-      const user = await register(email, password, firstName, lastName);
-
-      if (user) {
-        console.log('User registered successfully!');
-
-        // Redirect to home page
-        router.push('/');
+      if (error) {
+        console.error('Error logging in:', error.message)
+        return
       }
+
+      // redirect on success
+      await supabase.auth.getSession()
+      router.push('/')
     } catch (error) {
-      console.error('Error registering:', error);
+      console.error('Error logging in:', error)
     }
-  };
+  }
 
   return (
     <div>
@@ -36,27 +38,13 @@ export default function Register() {
 
       <div className="flex justify-center items-center h-[70vh]">
         <div className="w-80 border p-6 rounded-xl">
-          <h1 className="text-xl font-bold mb-4">Register</h1>
-
-          <input
-            placeholder="First Name"
-            value={firstName}
-            onChange={(e) => setFirstName(e.target.value)}
-            className="w-full border p-2 mb-2 rounded"
-          />
-
-          <input
-            placeholder="Last Name"
-            value={lastName}
-            onChange={(e) => setLastName(e.target.value)}
-            className="w-full border p-2 mb-2 rounded"
-          />
+          <h1 className="text-xl font-bold mb-4">Login</h1>
 
           <input
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border p-2 mb-2 rounded"
+            className="w-full border p-2 mb-3 rounded"
           />
 
           <input
@@ -68,13 +56,21 @@ export default function Register() {
           />
 
           <button
-            onClick={handleRegister}
+            onClick={handleLogin}
             className="w-full bg-black text-white py-2 rounded"
           >
-            Create Account
+            Login
           </button>
+
+          {/* SIGNUP LINK */}
+          <p className="text-sm text-center mt-4">
+            Don&apos;t have an account?{' '}
+            <Link href="/register" className="text-blue-500 hover:underline">
+              Sign up
+            </Link>
+          </p>
         </div>
       </div>
     </div>
-  );
+  )
 }
