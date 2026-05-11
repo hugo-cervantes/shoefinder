@@ -10,6 +10,7 @@ export default function Questionnaire() {
   const [shoeWidth, setShoeWidth] = useState("");
   const [categoryId, setCategoryId] = useState<number | "">("");
 
+  // Check auth on load
   useEffect(() => {
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -28,7 +29,7 @@ export default function Questionnaire() {
     }
 
     const { error } = await supabase.from("user_profile").upsert({
-      id: userId,
+      id: userId, // links to auth user
       gender,
       shoe_size: Number(shoeSize),
       shoe_width: shoeWidth,
@@ -56,6 +57,7 @@ export default function Questionnaire() {
             Shoe Fit Questionnaire
           </h1>
 
+          {/* Gender */}
           <div>
             <label className="block font-medium mb-2">Gender</label>
             <select
@@ -71,6 +73,7 @@ export default function Questionnaire() {
             </select>
           </div>
 
+          {/* Shoe Size */}
           <div>
             <label className="block font-medium mb-2">Shoe Size</label>
             <input
@@ -83,6 +86,7 @@ export default function Questionnaire() {
             />
           </div>
 
+          {/* Shoe Width */}
           <div>
             <label className="block font-medium mb-2">Width</label>
             <select
@@ -99,6 +103,7 @@ export default function Questionnaire() {
             </select>
           </div>
 
+          {/* Activity */}
           <div>
             <label className="block font-medium mb-2">Activity</label>
             <select
