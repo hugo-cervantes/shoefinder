@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
 
 export default function Questionnaire() {
+  const router = useRouter();
+
   const [userId, setUserId] = useState<string | null>(null);
 
   const [gender, setGender] = useState("");
@@ -10,7 +13,6 @@ export default function Questionnaire() {
   const [shoeWidth, setShoeWidth] = useState("");
   const [categoryId, setCategoryId] = useState<number | "">("");
 
-  // Get logged-in user
   useEffect(() => {
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -36,14 +38,14 @@ export default function Questionnaire() {
         shoe_width: shoeWidth,
         category_id: categoryId || null,
       })
-      .eq("id", userId); // IMPORTANT: target existing row
+      .eq("id", userId);
 
     if (error) {
       console.error("Update error:", error.message);
       return;
     }
 
-    console.log("Profile updated successfully");
+    router.push("/catalog");
   };
 
   return (
