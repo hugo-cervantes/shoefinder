@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Navbar from "../components/Navbar";
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "../lib/supabase";
 
 export default function Questionnaire() {
   const [userId, setUserId] = useState<string | null>(null);
