@@ -89,10 +89,10 @@ export default function Questionnaire() {
               required
             >
               <option value="">Select activity</option>
-              <option value="running">Running</option>
-              <option value="hiking">Hiking</option>
-              <option value="sports">Sports</option>
-              <option value="casual">Casual / Everyday</option>
+              <option value="{1}>Running</option>
+              <option value={2}>Casual</option>
+              <option value={3}>Sports</option>
+              <option value={4}>Hiking</option>
             </select>
           </div>
 
