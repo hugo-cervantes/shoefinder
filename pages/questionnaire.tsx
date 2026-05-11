@@ -10,7 +10,7 @@ export default function Questionnaire() {
   const [shoeWidth, setShoeWidth] = useState("");
   const [categoryId, setCategoryId] = useState<number | "">("");
 
-  // Check auth on load
+  // Get logged-in user
   useEffect(() => {
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
@@ -28,16 +28,18 @@ export default function Questionnaire() {
       return;
     }
 
-    const { error } = await supabase.from("user_profile").upsert({
-      id: userId, // links to auth user
-      gender,
-      shoe_size: Number(shoeSize),
-      shoe_width: shoeWidth,
-      category_id: categoryId || null,
-    });
+    const { error } = await supabase
+      .from("user_profile")
+      .update({
+        gender,
+        shoe_size: Number(shoeSize),
+        shoe_width: shoeWidth,
+        category_id: categoryId || null,
+      })
+      .eq("id", userId); // IMPORTANT: target existing row
 
     if (error) {
-      console.error("Upsert error:", error.message);
+      console.error("Update error:", error.message);
       return;
     }
 
