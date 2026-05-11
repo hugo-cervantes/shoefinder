@@ -18,7 +18,7 @@ export default function Questionnaire() {
     };
 
     console.log("User Input:", formData);
-    // later: send to Supabase or state manager
+    
   };
 
   return (
@@ -34,7 +34,6 @@ export default function Questionnaire() {
             Shoe Fit Questionnaire
           </h1>
 
-          {/* Gender */}
           <div>
             <label className="block font-medium mb-2">Gender</label>
             <select
@@ -50,7 +49,6 @@ export default function Questionnaire() {
             </select>
           </div>
 
-          {/* Shoe Size */}
           <div>
             <label className="block font-medium mb-2">Shoe Size (US)</label>
             <input
@@ -66,7 +64,6 @@ export default function Questionnaire() {
             />
           </div>
 
-          {/* Width */}
           <div>
             <label className="block font-medium mb-2">Width</label>
             <select
@@ -83,7 +80,6 @@ export default function Questionnaire() {
             </select>
           </div>
 
-          {/* Activity */}
           <div>
             <label className="block font-medium mb-2">Activity</label>
             <select
@@ -94,14 +90,12 @@ export default function Questionnaire() {
             >
               <option value="">Select activity</option>
               <option value="running">Running</option>
-              <option value="walking">Walking</option>
-              <option value="basketball">Basketball</option>
-              <option value="training">Training / Gym</option>
+              <option value="hiking">Hiking</option>
+              <option value="sports">Sports</option>
               <option value="casual">Casual / Everyday</option>
             </select>
           </div>
 
-          {/* Submit */}
           <button
             type="submit"
             className="w-full bg-black text-white py-2 rounded hover:bg-gray-800"
