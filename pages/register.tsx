@@ -1,29 +1,34 @@
 'use client'
 
 import { useState } from 'react';
+import { useRouter } from 'next/router';
 import { register } from '../lib/supabase';
 import Navbar from '../components/Navbar';
 
 export default function Register() {
+  const router = useRouter();
+
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
   const handleRegister = async () => {
-  try {
-    console.log('Registering user...');
-    const user = await register(email, password,firstName, lastName);
+    try {
+      console.log('Registering user...');
 
-    if (user) {
-      console.log('User registered successfully!');
-      // Redirect to home page or show success message
+      const user = await register(email, password, firstName, lastName);
+
+      if (user) {
+        console.log('User registered successfully!');
+
+        // Redirect to home page
+        router.push('/');
+      }
+    } catch (error) {
+      console.error('Error registering:', error);
     }
-  } catch (error) {
-    console.error('Error registering:', error);
-    // Show error message
-  }
-};
+  };
 
   return (
     <div>
@@ -39,18 +44,21 @@ export default function Register() {
             onChange={(e) => setFirstName(e.target.value)}
             className="w-full border p-2 mb-2 rounded"
           />
+
           <input
             placeholder="Last Name"
             value={lastName}
             onChange={(e) => setLastName(e.target.value)}
             className="w-full border p-2 mb-2 rounded"
           />
+
           <input
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             className="w-full border p-2 mb-2 rounded"
           />
+
           <input
             placeholder="Password"
             type="password"
@@ -59,7 +67,10 @@ export default function Register() {
             className="w-full border p-2 mb-4 rounded"
           />
 
-          <button onClick={handleRegister} className="w-full bg-black text-white py-2 rounded">
+          <button
+            onClick={handleRegister}
+            className="w-full bg-black text-white py-2 rounded"
+          >
             Create Account
           </button>
         </div>
