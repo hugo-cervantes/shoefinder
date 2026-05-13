@@ -21,6 +21,16 @@ const CATEGORY_MAP: Record<number, string> = {
   4: 'Hiking',
 }
 
+// ── Search sanitization ───────────────────────────────────────────────────
+const SEARCH_MAX_LENGTH = 50
+
+function sanitizeSearch(value: string): string {
+  return value
+    .replace(/[<>"'%;()&+\\]/g, '')   // strip injection characters
+    .replace(/\s{2,}/g, ' ')          // collapse multiple spaces into one
+    .slice(0, SEARCH_MAX_LENGTH)      // hard cap at 50 chars
+}
+
 export default function Navbar() {
   const router = useRouter()
 
@@ -61,7 +71,7 @@ export default function Navbar() {
       .then(({ data }) => { if (data) setAllShoes(data) })
   }, [])
 
-  // ── Wishlist count — fetch + re-fetch on wishlist-updated event ───────
+  // ── Wishlist count ────────────────────────────────────────────────────
   const fetchWishlistCount = async (uid: string) => {
     const { count } = await supabase
       .from('wishlist')
@@ -73,8 +83,6 @@ export default function Navbar() {
   useEffect(() => {
     if (!user) { setWishlistCount(0); return }
     fetchWishlistCount(user.id)
-
-    // Listen for heart button saves/removes on the shoe page
     const handler = () => fetchWishlistCount(user.id)
     window.addEventListener('wishlist-updated', handler)
     return () => window.removeEventListener('wishlist-updated', handler)
@@ -109,6 +117,12 @@ export default function Navbar() {
     router.push('/')
   }
 
+  // ── Sanitized search change handler ──────────────────────────────────
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sanitized = sanitizeSearch(e.target.value)
+    setQuery(sanitized)
+  }
+
   const handleSuggestionClick = (shoe: Shoe) => {
     setQuery(''); setSuggestions([]); setShowSuggestions(false)
     router.push(`/shoes/${shoe.id}`)
@@ -116,11 +130,15 @@ export default function Navbar() {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!query.trim()) return
-    router.push(`/catalog?search=${encodeURIComponent(query.trim())}`)
+    const trimmed = query.trim()
+    if (!trimmed) return
+    // encodeURIComponent ensures the sanitized query is safe in the URL too
+    router.push(`/catalog?search=${encodeURIComponent(trimmed)}`)
     setShowSuggestions(false)
     setQuery('')
   }
+
+  const atLimit = query.length >= SEARCH_MAX_LENGTH
 
   return (
     <nav className="flex justify-between items-center px-8 py-4 border-b relative bg-white z-50">
@@ -130,7 +148,7 @@ export default function Navbar() {
         <Link href="/">SoleMate</Link>
       </h1>
 
-      {/* Search — no filter button */}
+      {/* Search */}
       <div className="flex items-center flex-1 max-w-xl mx-8">
         <div ref={searchRef} className="relative w-full">
           <form onSubmit={handleSearchSubmit}>
@@ -140,15 +158,28 @@ export default function Navbar() {
                 <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
               </svg>
               <input
-                type="text" value={query}
-                onChange={e => setQuery(e.target.value)}
+                type="text"
+                value={query}
+                onChange={handleSearchChange}
                 onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
                 placeholder="Search shoes by name..."
-                className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg
+                maxLength={SEARCH_MAX_LENGTH}
+                autoComplete="off"
+                spellCheck={false}
+                className={`w-full pl-9 pr-8 py-2 text-sm border rounded-lg
                            focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent
-                           bg-gray-50 transition"
+                           bg-gray-50 transition
+                           ${atLimit ? 'border-yellow-400' : 'border-gray-200'}`}
               />
-              {query && (
+
+              {/* char limit warning */}
+              {atLimit && (
+                <span className="absolute right-8 top-1/2 -translate-y-1/2 text-xs text-yellow-500 pointer-events-none">
+                  {SEARCH_MAX_LENGTH}/{SEARCH_MAX_LENGTH}
+                </span>
+              )}
+
+              {query && !atLimit && (
                 <button type="button"
                   onClick={() => { setQuery(''); setSuggestions([]); setShowSuggestions(false) }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
@@ -240,13 +271,10 @@ export default function Navbar() {
 
             {accountOpen && (
               <div className="absolute right-0 mt-2 w-52 bg-white border border-gray-200 shadow-lg rounded-xl p-2 z-50">
-
-                {/* Email */}
                 <p className="text-xs text-gray-400 px-2 py-1.5 border-b border-gray-100 truncate mb-1">
                   {user.email}
                 </p>
 
-                {/* Saved Shoes */}
                 <Link href="/wishlist" onClick={() => setAccountOpen(false)}
                   className="flex items-center justify-between px-2 py-2 text-sm text-gray-700
                              hover:bg-gray-50 rounded-lg transition w-full">
@@ -268,7 +296,6 @@ export default function Navbar() {
                   )}
                 </Link>
 
-                {/* Questionnaire */}
                 <Link href="/questionnaire" onClick={() => setAccountOpen(false)}
                   className="flex items-center gap-2.5 px-2 py-2 text-sm text-gray-700
                              hover:bg-gray-50 rounded-lg transition w-full">
@@ -280,7 +307,6 @@ export default function Navbar() {
                   Shoe Fit Questionnaire
                 </Link>
 
-                {/* Logout */}
                 <button onClick={handleLogout}
                   className="flex items-center gap-2.5 px-2 py-2 text-sm text-red-500
                              hover:bg-red-50 rounded-lg transition w-full">
