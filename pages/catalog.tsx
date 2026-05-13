@@ -238,7 +238,7 @@ export default function CatalogPage() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
           {shoes.map(shoe => (
             <div key={shoe.id}
-              className="group bg-white rounded-2xl overflow-hidden transition hover:shadow-xl">
+              className="group bg-white rounded-2xl overflow-hidden transition hover:shadow-xl border border-gray-100 shadow-sm">
               <Link href={`/shoes/${shoe.id}`}>
                 <div className="aspect-square bg-gray-100 flex items-center justify-center overflow-hidden">
                   <img
