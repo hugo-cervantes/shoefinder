@@ -232,7 +232,7 @@ export default function AccountSettings() {
 
     // Call the edge function which uses the admin key to fully delete the account
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/delete-user`,
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/dynamic-handler`,
       {
         method: 'POST',
         headers: {
