@@ -97,7 +97,7 @@ export default function Questionnaire() {
       .eq("id", userId);
 
     if (error) { console.error("Update error:", error.message); return; }
-    router.push("/catalog");
+    router.push("/recommendation");
   };
 
   const isSuffix = sizeSystem === "CM" || sizeSystem === "JP";
