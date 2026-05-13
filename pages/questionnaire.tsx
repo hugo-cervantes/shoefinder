@@ -45,7 +45,7 @@ export default function Questionnaire() {
       return;
     }
 
-    router.push("/catalog");
+    router.push("/recommendation");
   };
 
   return (
