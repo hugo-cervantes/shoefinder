@@ -106,6 +106,7 @@ export default function Navbar() {
   const handleLogout = async () => {
     await supabase.auth.signOut()
     setAccountOpen(false)
+    router.push('/')
   }
 
   const handleSuggestionClick = (shoe: Shoe) => {
