@@ -28,7 +28,7 @@ export default function ShoePage() {
   const [loading, setLoading] = useState(true);
 
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [rating, setRating] = useState(5);
+  const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
 
   useEffect(() => {
@@ -80,7 +80,7 @@ export default function ShoePage() {
     });
 
     setReviewText("");
-    setRating(5);
+    setRating(0);
 
     const { data } = await supabase
       .from("review")
@@ -141,8 +141,11 @@ export default function ShoePage() {
                   key={star}
                   onClick={() => setRating(star)}
                   className="text-2xl"
+                  type="button"
                 >
-                  {star <= rating ? "★" : "☆"}
+                  <span className={star <= rating ? "text-yellow-400" : "text-gray-300"}>
+                    ★
+                  </span>
                 </button>
               ))}
             </div>
