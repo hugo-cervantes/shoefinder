@@ -359,6 +359,8 @@ export default function AccountSettings() {
               {btnLabel(passwordSave, 'Update Password')}
             </button>
           </div>
+        </section>
+
         {/* ── Danger Zone: Delete Account ── */}
         <section className="bg-white rounded-2xl p-6 shadow-sm border border-red-100 mt-4">
           <h2 className="text-base font-semibold text-red-600 mb-1">Danger Zone</h2>
