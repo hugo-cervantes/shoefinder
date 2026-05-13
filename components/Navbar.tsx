@@ -48,14 +48,8 @@ export default function Navbar() {
   const [allShoes, setAllShoes] = useState<Shoe[]>([])
   const [suggestions, setSuggestions] = useState<Shoe[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
-
-  // Filters
-  const [filterOpen, setFilterOpen] = useState(false)
-  const [selectedWidths, setSelectedWidths] = useState<string[]>([])       // lowercase values
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]) // numeric ids
-
+  
   const searchRef = useRef<HTMLDivElement>(null)
-  const filterRef = useRef<HTMLDivElement>(null)
   const accountRef = useRef<HTMLDivElement>(null)
 
   // ── Auth ──────────────────────────────────────────────────────────────
