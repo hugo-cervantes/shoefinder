@@ -3,112 +3,104 @@ import { useRouter } from "next/router";
 import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
 
+// ── Size conversion tables → all convert TO US Men's sizing ──────────────
+const TO_US: Record<string, (size: number) => number> = {
+  "US Men's":   (s) => s,
+  "US Women's": (s) => s - 1.5,          // Women's 8 = Men's 6.5
+  "UK":         (s) => s + 0.5,          // UK 7 = US Men's 7.5
+  "EU":         (s) => (s - 33) / 1.5,   // EU 42 ≈ US 9
+  "CM":         (s) => (s - 15.6) / 0.83, // foot length cm → US
+  "JP":         (s) => (s - 15.6) / 0.83, // JP uses same cm scale
+};
+
+const SIZE_OPTIONS: Record<string, number[]> = {
+  "US Men's":   Array.from({ length: 29 }, (_, i) => +(4   + i * 0.5).toFixed(1)),
+  "US Women's": Array.from({ length: 29 }, (_, i) => +(5.5 + i * 0.5).toFixed(1)),
+  "UK":         Array.from({ length: 29 }, (_, i) => +(3.5 + i * 0.5).toFixed(1)),
+  "EU":         Array.from({ length: 16 }, (_, i) =>   36  + i),
+  "CM":         Array.from({ length: 25 }, (_, i) => +(22  + i * 0.5).toFixed(1)),
+  "JP":         Array.from({ length: 25 }, (_, i) => +(22  + i * 0.5).toFixed(1)),
+};
+
+const SIZE_SYSTEMS = Object.keys(SIZE_OPTIONS);
+
+function convertToUS(size: number, system: string): number {
+  const fn = TO_US[system];
+  if (!fn) return size;
+  return Math.round(fn(size) * 2) / 2; // round to nearest 0.5
+}
+
 export default function Questionnaire() {
   const router = useRouter();
 
-  const [userId, setUserId] = useState<string | null>(null);
-  const [gender, setGender] = useState("");
-  const [shoeSize, setShoeSize] = useState("");
+  const [userId, setUserId]       = useState<string | null>(null);
+  const [gender, setGender]       = useState("");
   const [shoeWidth, setShoeWidth] = useState("");
   const [categoryId, setCategoryId] = useState<number | "">("");
-  const [shoeSizeError, setShoeSizeError] = useState("");
+
+  const [sizeSystem, setSizeSystem]     = useState("US Men's");
+  const [selectedSize, setSelectedSize] = useState<number | "">("");
+  const [convertedUS, setConvertedUS]   = useState<number | null>(null);
+  const [sizeError, setSizeError]       = useState("");
 
   useEffect(() => {
-    const getUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUserId(data.user?.id || null);
-    };
-    getUser();
+    supabase.auth.getUser().then(({ data }) =>
+      setUserId(data.user?.id || null)
+    );
   }, []);
 
-  // ── Shoe size sanitization ─────────────────────────────────────────────
-  const handleShoeSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-
-    // Block the letter "e", "+", "-", and any non-numeric chars except "."
-    const cleaned = raw.replace(/[^0-9.]/g, "");
-
-    // Only allow one decimal point
-    const parts = cleaned.split(".");
-    const sanitized =
-      parts.length > 2 ? parts[0] + "." + parts.slice(1).join("") : cleaned;
-
-    // Max 2 digits before the decimal
-    const [whole, decimal] = sanitized.split(".");
-    if (whole && whole.length > 2) return; // reject if more than 2 digits
-
-    setShoeSizeError("");
-
-    // Validate range: 1–99, no negatives
-    const num = parseFloat(sanitized);
-    if (sanitized !== "" && !isNaN(num)) {
-      if (num <= 0) {
-        setShoeSizeError("Shoe size must be a positive number.");
-        return;
-      }
-      if (num > 99) {
-        setShoeSizeError("Shoe size cannot exceed 2 digits.");
-        return;
-      }
-      // Only allow 0.5 increments
-      if (decimal !== undefined && decimal !== "" && decimal !== "5") {
-        setShoeSizeError("Only half sizes are allowed (e.g. 9, 9.5).");
-      }
+  // Auto-convert when size or system changes
+  useEffect(() => {
+    if (selectedSize === "") {
+      setConvertedUS(null);
+      setSizeError("");
+      return;
     }
+    const us = convertToUS(Number(selectedSize), sizeSystem);
+    if (isNaN(us) || us < 4 || us > 18) {
+      setSizeError(`US equivalent (${isNaN(us) ? "?" : us}) is out of our range (4–18). Try a different size.`);
+      setConvertedUS(null);
+    } else {
+      setSizeError("");
+      setConvertedUS(us);
+    }
+  }, [selectedSize, sizeSystem]);
 
-    setShoeSize(sanitized);
+  const handleSystemChange = (system: string) => {
+    setSizeSystem(system);
+    setSelectedSize("");
+    setConvertedUS(null);
+    setSizeError("");
   };
 
-  // Block "e", "-", "+" at the keyboard level
-  const handleShoeSizeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (["e", "E", "-", "+"].includes(e.key)) {
-      e.preventDefault();
-    }
-  };
-
-  // ── Submit ─────────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!userId)      { console.error("Not logged in"); return; }
+    if (!convertedUS) { setSizeError("Please select a valid size."); return; }
+    if (sizeError)    return;
 
-    if (!userId) {
-      console.error("User not logged in");
-      return;
-    }
-
-    if (shoeSizeError) return; // don't submit with validation errors
-
-    const sizeNum = parseFloat(shoeSize);
-    if (isNaN(sizeNum) || sizeNum <= 0 || sizeNum > 99) {
-      setShoeSizeError("Please enter a valid shoe size.");
-      return;
-    }
-
-    // Sanitize gender and shoeWidth against unexpected values
-    const allowedGenders = ["Men", "Women", "Unisex"];
-    const allowedWidths = ["narrow", "medium", "wide", "extra-wide"];
+    const allowedGenders    = ["male", "female", "unisex"];
+    const allowedWidths     = ["narrow", "medium", "wide", "extra-wide"];
     const allowedCategories = [1, 2, 3, 4];
-
-    if (!allowedGenders.includes(gender)) return;
-    if (!allowedWidths.includes(shoeWidth)) return;
+    if (!allowedGenders.includes(gender))                              return;
+    if (!allowedWidths.includes(shoeWidth))                            return;
     if (categoryId !== "" && !allowedCategories.includes(Number(categoryId))) return;
 
     const { error } = await supabase
       .from("user_profile")
       .update({
         gender,
-        shoe_size: sizeNum,
-        shoe_width: shoeWidth,
+        shoe_size:   convertedUS,       // always stored as US Men's
+        shoe_width:  shoeWidth,
         category_id: categoryId || null,
       })
       .eq("id", userId);
 
-    if (error) {
-      console.error("Update error:", error.message);
-      return;
-    }
-
-    router.push("/recommendation");
+    if (error) { console.error("Update error:", error.message); return; }
+    router.push("/catalog");
   };
+
+  const isSuffix = sizeSystem === "CM" || sizeSystem === "JP";
 
   return (
     <div>
@@ -119,11 +111,9 @@ export default function Questionnaire() {
           onSubmit={handleSubmit}
           className="w-full max-w-xl bg-white p-8 rounded-2xl shadow-md space-y-6"
         >
-          <h1 className="text-3xl font-bold text-center">
-            Shoe Fit Questionnaire
-          </h1>
+          <h1 className="text-3xl font-bold text-center">Shoe Fit Questionnaire</h1>
 
-          {/* Gender */}
+          {/* ── Gender ── */}
           <div>
             <label className="block font-medium mb-2">Gender</label>
             <select
@@ -133,37 +123,77 @@ export default function Questionnaire() {
               required
             >
               <option value="">Select gender</option>
-              <option value="Men">Mens</option>
-              <option value="Women">Womens</option>
-              <option value="Unisex">Unisex</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="unisex">Unisex</option>
             </select>
           </div>
 
-          {/* Shoe Size — sanitized */}
+          {/* ── Shoe Size ── */}
           <div>
             <label className="block font-medium mb-2">Shoe Size</label>
-            <input
-              type="text"           // text not number — gives us full control
-              inputMode="decimal"   // shows numeric keyboard on mobile
-              value={shoeSize}
-              onChange={handleShoeSizeChange}
-              onKeyDown={handleShoeSizeKeyDown}
-              placeholder="e.g. 9 or 9.5"
-              maxLength={4}         // max "99.5"
+
+            {/* Sizing system pills */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {SIZE_SYSTEMS.map((system) => (
+                <button
+                  key={system}
+                  type="button"
+                  onClick={() => handleSystemChange(system)}
+                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition
+                    ${sizeSystem === system
+                      ? "bg-black text-white border-black"
+                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    }`}
+                >
+                  {system}
+                </button>
+              ))}
+            </div>
+
+            {/* Size dropdown */}
+            <select
+              value={selectedSize}
+              onChange={(e) =>
+                setSelectedSize(e.target.value === "" ? "" : Number(e.target.value))
+              }
               className={`w-full p-2 border rounded transition ${
-                shoeSizeError ? "border-red-400 bg-red-50" : ""
+                sizeError ? "border-red-400 bg-red-50" : ""
               }`}
               required
-            />
-            {shoeSizeError && (
-              <p className="text-red-500 text-sm mt-1">{shoeSizeError}</p>
+            >
+              <option value="">Select your {sizeSystem} size</option>
+              {SIZE_OPTIONS[sizeSystem].map((size) => (
+                <option key={size} value={size}>
+                  {size}{isSuffix ? " cm" : ""}
+                </option>
+              ))}
+            </select>
+
+            {/* Error message */}
+            {sizeError && (
+              <p className="text-red-500 text-sm mt-1">{sizeError}</p>
             )}
-            <p className="text-gray-400 text-xs mt-1">
-              Whole or half sizes only (e.g. 8, 8.5, 12). Max 2 digits.
-            </p>
+
+            {/* Conversion preview — only show when not US Men's */}
+            {convertedUS && !sizeError && sizeSystem !== "US Men's" && (
+              <div className="mt-2 flex items-center gap-1.5 text-sm text-gray-500">
+                <svg className="w-3.5 h-3.5 text-green-500 shrink-0" fill="none"
+                  stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Converts to{" "}
+                <span className="font-semibold text-gray-800">US Men's {convertedUS}</span>
+                {" "}— saved automatically.
+              </div>
+            )}
+
+            {convertedUS && !sizeError && sizeSystem === "US Men's" && (
+              <p className="text-xs text-gray-400 mt-1">Size {convertedUS} will be saved.</p>
+            )}
           </div>
 
-          {/* Shoe Width */}
+          {/* ── Width ── */}
           <div>
             <label className="block font-medium mb-2">Width</label>
             <select
@@ -180,7 +210,7 @@ export default function Questionnaire() {
             </select>
           </div>
 
-          {/* Activity */}
+          {/* ── Activity ── */}
           <div>
             <label className="block font-medium mb-2">Activity</label>
             <select
@@ -199,8 +229,9 @@ export default function Questionnaire() {
 
           <button
             type="submit"
-            disabled={!!shoeSizeError}
-            className="w-full bg-black text-white py-2 rounded hover:bg-gray-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            disabled={!!sizeError || !convertedUS}
+            className="w-full bg-black text-white py-2 rounded hover:bg-gray-800
+                       disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             Save Profile
           </button>
