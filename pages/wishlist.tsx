@@ -33,30 +33,70 @@ export default function WishlistPage() {
         return;
       }
 
-      const { data, error } = await supabase
+      // Step 1: get all wishlist rows for this user
+      const { data: wishlistRows, error: wishlistError } = await supabase
         .from("wishlist")
-        .select("id, shoe_id, shoe:shoe_id(id, name, model_line, price, image_url, gender)")
+        .select("id, shoe_id")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
 
-      if (error) console.error("Wishlist fetch error:", error.message);
-      else setEntries((data as any) || []);
+      if (wishlistError) {
+        console.error("Wishlist fetch error:", wishlistError.message);
+        setLoading(false);
+        return;
+      }
 
+      if (!wishlistRows || wishlistRows.length === 0) {
+        setEntries([]);
+        setLoading(false);
+        return;
+      }
+
+      // Step 2: get all the shoe details for those shoe_ids
+      const shoeIds = wishlistRows.map((r) => r.shoe_id);
+
+      const { data: shoeRows, error: shoeError } = await supabase
+        .from("shoe")
+        .select("id, name, model_line, price, image_url, gender")
+        .in("id", shoeIds);
+
+      if (shoeError) {
+        console.error("Shoe fetch error:", shoeError.message);
+        setLoading(false);
+        return;
+      }
+
+      // Step 3: stitch them together
+      const shoeMap = new Map<number, Shoe>();
+      (shoeRows || []).forEach((s) => shoeMap.set(s.id, s));
+
+      const combined: WishlistEntry[] = wishlistRows
+        .filter((row) => shoeMap.has(row.shoe_id))
+        .map((row) => ({
+          id: row.id,
+          shoe_id: row.shoe_id,
+          shoe: shoeMap.get(row.shoe_id)!,
+        }));
+
+      setEntries(combined);
       setLoading(false);
     };
 
     fetchWishlist();
   }, []);
 
-  const removeFromWishlist = async (wishlistId: number, shoeId: number) => {
+  const removeFromWishlist = async (wishlistId: number) => {
     const { error } = await supabase
       .from("wishlist")
       .delete()
       .eq("id", wishlistId);
 
-    if (!error) {
-      setEntries(prev => prev.filter(e => e.id !== wishlistId));
+    if (error) {
+      console.error("Remove error:", error.message);
+      return;
     }
+
+    setEntries((prev) => prev.filter((e) => e.id !== wishlistId));
   };
 
   // ── Not logged in ─────────────────────────────────────────────────────
@@ -125,9 +165,9 @@ export default function WishlistPage() {
                 key={entry.id}
                 className="group bg-white rounded-2xl overflow-hidden transition hover:shadow-xl relative"
               >
-                {/* Remove heart button */}
+                {/* Remove button */}
                 <button
-                  onClick={() => removeFromWishlist(entry.id, entry.shoe_id)}
+                  onClick={() => removeFromWishlist(entry.id)}
                   title="Remove from wishlist"
                   className="absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center
                              bg-white rounded-full shadow-md hover:scale-110 transition"
