@@ -21,20 +21,8 @@ const CATEGORY_MAP: Record<number, string> = {
   4: 'Hiking',
 }
 
-const WIDTHS = [
-  { label: 'Narrow',     value: 'narrow' },
-  { label: 'Medium',     value: 'medium' },
-  { label: 'Wide',       value: 'wide' },
-  { label: 'Extra Wide', value: 'extra wide' },
-]
-
-const CATEGORIES = Object.entries(CATEGORY_MAP).map(([id, label]) => ({
-  id: Number(id), label,
-}))
-
 export default function Navbar() {
   const router = useRouter()
-  const isHomePage = router.pathname === '/'
 
   const [user, setUser] = useState<User | null>(null)
   const [loadingAuth, setLoadingAuth] = useState(true)
@@ -46,16 +34,10 @@ export default function Navbar() {
   const [suggestions, setSuggestions] = useState<Shoe[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
 
-  // Filters
-  const [filterOpen, setFilterOpen] = useState(false)
-  const [selectedWidths, setSelectedWidths] = useState<string[]>([])
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([])
-
   // Wishlist count badge
   const [wishlistCount, setWishlistCount] = useState(0)
 
   const searchRef  = useRef<HTMLDivElement>(null)
-  const filterRef  = useRef<HTMLDivElement>(null)
   const accountRef = useRef<HTMLDivElement>(null)
 
   // ── Auth ──────────────────────────────────────────────────────────────
@@ -79,12 +61,23 @@ export default function Navbar() {
       .then(({ data }) => { if (data) setAllShoes(data) })
   }, [])
 
-  // ── Wishlist count (shows badge on dropdown) ──────────────────────────
+  // ── Wishlist count — fetch + re-fetch on wishlist-updated event ───────
+  const fetchWishlistCount = async (uid: string) => {
+    const { count } = await supabase
+      .from('wishlist')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', uid)
+    setWishlistCount(count ?? 0)
+  }
+
   useEffect(() => {
     if (!user) { setWishlistCount(0); return }
-    supabase.from('wishlist').select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .then(({ count }) => setWishlistCount(count ?? 0))
+    fetchWishlistCount(user.id)
+
+    // Listen for heart button saves/removes on the shoe page
+    const handler = () => fetchWishlistCount(user.id)
+    window.addEventListener('wishlist-updated', handler)
+    return () => window.removeEventListener('wishlist-updated', handler)
   }, [user])
 
   // ── Suggestions ───────────────────────────────────────────────────────
@@ -92,28 +85,18 @@ export default function Navbar() {
     const q = query.trim().toLowerCase()
     if (!q) { setSuggestions([]); setShowSuggestions(false); return }
 
-    const matched = allShoes.filter(shoe => {
-      const textMatch =
-        shoe.name.toLowerCase().includes(q) ||
-        (shoe.model_line?.toLowerCase().includes(q) ?? false)
-      const widthMatch =
-        selectedWidths.length === 0 ||
-        selectedWidths.includes(shoe.width?.toLowerCase() ?? '')
-      const catMatch =
-        selectedCategoryIds.length === 0 ||
-        selectedCategoryIds.includes(shoe.category_id)
-      return textMatch && widthMatch && catMatch
-    })
-
+    const matched = allShoes.filter(shoe =>
+      shoe.name.toLowerCase().includes(q) ||
+      (shoe.model_line?.toLowerCase().includes(q) ?? false)
+    )
     setSuggestions(matched.slice(0, 7))
     setShowSuggestions(true)
-  }, [query, allShoes, selectedWidths, selectedCategoryIds])
+  }, [query, allShoes])
 
   // ── Close on outside click ────────────────────────────────────────────
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (searchRef.current  && !searchRef.current.contains(e.target as Node))  setShowSuggestions(false)
-      if (filterRef.current  && !filterRef.current.contains(e.target as Node))  setFilterOpen(false)
       if (accountRef.current && !accountRef.current.contains(e.target as Node)) setAccountOpen(false)
     }
     document.addEventListener('mousedown', handler)
@@ -125,10 +108,6 @@ export default function Navbar() {
     setAccountOpen(false)
   }
 
-  const toggleWidth    = (v: string) => setSelectedWidths(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])
-  const toggleCategory = (id: number) => setSelectedCategoryIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-  const activeFilterCount = selectedWidths.length + selectedCategoryIds.length
-
   const handleSuggestionClick = (shoe: Shoe) => {
     setQuery(''); setSuggestions([]); setShowSuggestions(false)
     router.push(`/shoes/${shoe.id}`)
@@ -137,12 +116,9 @@ export default function Navbar() {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!query.trim()) return
-    const params = new URLSearchParams()
-    params.set('search', query.trim())
-    if (selectedWidths.length) params.set('widths', selectedWidths.join(','))
-    if (selectedCategoryIds.length) params.set('categories', selectedCategoryIds.join(','))
-    router.push(`/catalog?${params.toString()}`)
-    setShowSuggestions(false); setQuery('')
+    router.push(`/catalog?search=${encodeURIComponent(query.trim())}`)
+    setShowSuggestions(false)
+    setQuery('')
   }
 
   return (
@@ -153,10 +129,9 @@ export default function Navbar() {
         <Link href="/">SoleMate</Link>
       </h1>
 
-      {/* Search + Filter */}
-      <div className="flex items-center gap-2 flex-1 max-w-xl mx-8">
-
-        <div ref={searchRef} className="relative flex-1">
+      {/* Search — no filter button */}
+      <div className="flex items-center flex-1 max-w-xl mx-8">
+        <div ref={searchRef} className="relative w-full">
           <form onSubmit={handleSearchSubmit}>
             <div className="relative w-full">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none"
@@ -240,62 +215,6 @@ export default function Navbar() {
             </div>
           )}
         </div>
-
-        {/* Filter — hidden on home page */}
-        {!isHomePage && (
-          <div ref={filterRef} className="relative shrink-0">
-            <button onClick={() => setFilterOpen(!filterOpen)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-sm border rounded-lg transition font-medium
-                          ${activeFilterCount > 0 ? 'bg-black text-white border-black' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'}`}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path d="M3 6h18M7 12h10M11 18h2" strokeLinecap="round" />
-              </svg>
-              Filters
-              {activeFilterCount > 0 && (
-                <span className="ml-0.5 bg-white text-black text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-
-            {filterOpen && (
-              <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl p-4 z-50">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Width</p>
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {WIDTHS.map(w => (
-                    <button key={w.value} onClick={() => toggleWidth(w.value)}
-                      className={`text-xs px-3 py-1.5 rounded-full border transition font-medium
-                                  ${selectedWidths.includes(w.value) ? 'bg-black text-white border-black' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
-                      {w.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Activity</p>
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {CATEGORIES.map(c => (
-                    <button key={c.id} onClick={() => toggleCategory(c.id)}
-                      className={`text-xs px-3 py-1.5 rounded-full border transition font-medium
-                                  ${selectedCategoryIds.includes(c.id) ? 'bg-black text-white border-black' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex gap-2 pt-1 border-t border-gray-100">
-                  {activeFilterCount > 0 && (
-                    <button onClick={() => { setSelectedWidths([]); setSelectedCategoryIds([]) }}
-                      className="flex-1 text-xs py-1.5 text-gray-500 hover:text-black transition">
-                      Clear all
-                    </button>
-                  )}
-                  <button onClick={() => { setFilterOpen(false); if (query.trim()) handleSearchSubmit({ preventDefault: () => {} } as React.FormEvent) }}
-                    className="flex-1 text-xs py-1.5 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition">
-                    Apply
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Nav links + Account */}
@@ -326,7 +245,7 @@ export default function Navbar() {
                   {user.email}
                 </p>
 
-                {/* Wishlist */}
+                {/* Saved Shoes */}
                 <Link href="/wishlist" onClick={() => setAccountOpen(false)}
                   className="flex items-center justify-between px-2 py-2 text-sm text-gray-700
                              hover:bg-gray-50 rounded-lg transition w-full">
