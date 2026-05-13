@@ -79,7 +79,7 @@ export default function Questionnaire() {
     if (!convertedUS) { setSizeError("Please select a valid size."); return; }
     if (sizeError)    return;
 
-    const allowedGenders    = ["male", "female", "unisex"];
+    const allowedGenders    = ["Men", "Women", "Unisex"];
     const allowedWidths     = ["narrow", "medium", "wide", "extra-wide"];
     const allowedCategories = [1, 2, 3, 4];
     if (!allowedGenders.includes(gender))                              return;
@@ -123,9 +123,9 @@ export default function Questionnaire() {
               required
             >
               <option value="">Select gender</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="unisex">Unisex</option>
+              <option value="Men">Mens</option>
+              <option value="Women">Womens</option>
+              <option value="Unisex">Unisex</option>
             </select>
           </div>
 
