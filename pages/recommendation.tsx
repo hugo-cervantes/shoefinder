@@ -1,109 +1,162 @@
+// pages/recommendations.tsx
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Navbar from "../components/Navbar";
 import { supabase } from "../lib/supabase";
 
-interface Shoe {
-  id: number;
+type Shoe = {
+  id: string;
   name: string;
-  model_line: string;
-  price: number;
+  brand: string;
   image_url: string;
-  gender: string;
-}
+  price: number;
+  width: string;
+  cat_id: number;
+};
 
-export default function CatalogPage() {
-  const [shoes, setShoes] = useState<Shoe[]>([]);
+type UserProfile = {
+  shoe_width: string;
+  category_id: number;
+};
+
+export default function Recommendations() {
   const [loading, setLoading] = useState(true);
+  const [shoes, setShoes] = useState<Shoe[]>([]);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    async function fetchShoes() {
-      const { data, error } = await supabase
-        .from("shoe")
+    const loadRecommendations = async () => {
+      setLoading(true);
+
+      // Get logged in user
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      // Get user preferences
+      const { data: profileData, error: profileError } = await supabase
+        .from("user_profile")
+        .select("shoe_width, category_id")
+        .eq("id", user.id)
+        .single();
+
+      if (profileError || !profileData) {
+        console.error(profileError);
+        setLoading(false);
+        return;
+      }
+
+      setProfile(profileData);
+
+      // Get matching shoes
+      const { data: shoeData, error: shoeError } = await supabase
+        .from("shoes")
         .select("*")
-        .order("id", { ascending: true });
+        .eq("width", profileData.shoe_width)
+        .eq("cat_id", profileData.category_id);
 
-      if (error) console.error(error);
-      else setShoes(data || []);
+      if (shoeError) {
+        console.error(shoeError);
+        setLoading(false);
+        return;
+      }
 
+      setShoes(shoeData || []);
       setLoading(false);
-    }
-    fetchShoes();
+    };
+
+    loadRecommendations();
   }, []);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-gray-100">
       <Navbar />
 
-      {/* HERO */}
-      <section
-        className="bg-cover bg-center h-56 md:h-96"
-        style={{ backgroundImage: "url('/images/sneakers.jpg')" }}
-      >
-        <div className="bg-black/50 h-full w-full flex items-center justify-center">
-          <h1 className="text-4xl md:text-6xl font-bold text-white">
-            Explore Our Collection
-          </h1>
-        </div>
-      </section>
-
-      {/* CONTENT */}
       <main className="max-w-7xl mx-auto px-6 py-10">
-        {loading && (
-          <p className="text-center text-gray-600">Loading shoes...</p>
-        )}
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2">
+            Recommended Shoes
+          </h1>
 
-        {!loading && shoes.length === 0 && (
-          <p className="text-center text-gray-500">No shoes available.</p>
-        )}
+          {profile && (
+            <p className="text-gray-600">
+              Based on your preferred width (
+              <span className="font-semibold">
+                {profile.shoe_width}
+              </span>
+              ) and activity category.
+            </p>
+          )}
+        </div>
 
-        {/* ✅ GRID */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-          {shoes.map((shoe) => (
-            <div
-              key={shoe.id}
-              className="group bg-white rounded-2xl overflow-hidden transition hover:shadow-xl"
+        {loading ? (
+          <div className="text-center py-20 text-lg">
+            Loading recommendations...
+          </div>
+        ) : shoes.length === 0 ? (
+          <div className="bg-white rounded-2xl p-10 shadow text-center">
+            <h2 className="text-2xl font-semibold mb-3">
+              No matching shoes found
+            </h2>
+
+            <p className="text-gray-600">
+              Try updating your questionnaire preferences.
+            </p>
+
+            <Link
+              href="/questionnaire"
+              className="inline-block mt-6 bg-black text-white px-6 py-3 rounded-lg hover:bg-gray-800"
             >
-              {/* ✅ FIXED IMAGE */}
-              <Link href={`/shoes/${shoe.id}`}>
-                <div className="aspect-square bg-gray-100 flex items-center justify-center overflow-hidden">
+              Update Preferences
+            </Link>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+            {shoes.map((shoe) => (
+              <Link
+                key={shoe.id}
+                href={`/shoes/${shoe.id}`}
+                className="bg-white rounded-2xl shadow hover:shadow-lg transition overflow-hidden"
+              >
+                <div className="aspect-square bg-gray-200 overflow-hidden">
                   <img
                     src={shoe.image_url}
                     alt={shoe.name}
-                    className="w-full h-full object-contain p-6 transition-transform duration-300 group-hover:scale-105"
+                    className="w-full h-full object-cover hover:scale-105 transition duration-300"
                   />
                 </div>
-              </Link>
 
-              {/* INFO */}
-              <div className="p-4">
-                <h3 className="font-semibold text-gray-900 text-lg">
-                  {shoe.name}
-                </h3>
+                <div className="p-4 space-y-2">
+                  <div>
+                    <p className="text-sm text-gray-500">
+                      {shoe.brand}
+                    </p>
 
-                <p className="text-sm text-gray-500 mt-1">
-                  {shoe.model_line}
-                </p>
+                    <h2 className="text-lg font-semibold">
+                      {shoe.name}
+                    </h2>
+                  </div>
 
-                <p className="text-sm text-gray-500">
-                  {shoe.gender}
-                </p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-lg">
+                      ${shoe.price}
+                    </p>
 
-                <div className="flex justify-between items-center mt-3">
-                  <span className="font-bold text-lg">
-                    ${shoe.price}
-                  </span>
-
-                  <Link href={`/shoes/${shoe.id}`}>
-                    <button className="text-sm bg-black text-white px-3 py-1 rounded hover:bg-gray-800">
-                      View
-                    </button>
-                  </Link>
+                    <span className="text-sm bg-gray-100 px-3 py-1 rounded-full capitalize">
+                      {shoe.width}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </div>
-          ))}
-        </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );
