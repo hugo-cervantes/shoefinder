@@ -207,7 +207,7 @@ export default function AccountSettings() {
 
     setDeleteLoading(true)
 
-    // Re-authenticate first
+    // Re-authenticate first to verify the password is correct
     const { data: { user } } = await supabase.auth.getUser()
     if (!user?.email) return
 
@@ -222,12 +222,35 @@ export default function AccountSettings() {
       return
     }
 
-    // Delete user_profile row first (RLS requires user to be authenticated)
-    await supabase.from('user_profile').delete().eq('id', user.id)
-    await supabase.from('wishlist').delete().eq('user_id', user.id)
+    // Get the session token to pass to the edge function
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      setDeleteError('Session expired. Please log in again.')
+      setDeleteLoading(false)
+      return
+    }
 
-    // Sign out and delete the auth user via admin — 
-    // Since we only have anon key, we sign out and let Supabase cascade
+    // Call the edge function which uses the admin key to fully delete the account
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/delete-user`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    )
+
+    const result = await response.json()
+
+    if (!response.ok || result.error) {
+      setDeleteError('Failed to delete account. Please try again.')
+      setDeleteLoading(false)
+      return
+    }
+
+    // Sign out locally and redirect
     await supabase.auth.signOut()
     router.push('/')
   }
