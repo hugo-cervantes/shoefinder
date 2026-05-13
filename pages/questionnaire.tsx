@@ -84,7 +84,7 @@ export default function Questionnaire() {
     }
 
     // Sanitize gender and shoeWidth against unexpected values
-    const allowedGenders = ["male", "female", "unisex"];
+    const allowedGenders = ["Men", "Women", "Unisex"];
     const allowedWidths = ["narrow", "medium", "wide", "extra-wide"];
     const allowedCategories = [1, 2, 3, 4];
 
@@ -133,9 +133,9 @@ export default function Questionnaire() {
               required
             >
               <option value="">Select gender</option>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-              <option value="unisex">Unisex</option>
+              <option value="Men">Mens</option>
+              <option value="Women">Womens</option>
+              <option value="Unisex">Unisex</option>
             </select>
           </div>
 
