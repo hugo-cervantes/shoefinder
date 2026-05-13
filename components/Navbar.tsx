@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/router'
 import { supabase } from '../lib/supabase'
 import type { User } from '@supabase/supabase-js'
 
@@ -38,6 +39,9 @@ function fuzzyMatch(query: string, target: string): boolean {
 }
 
 export default function Navbar() {
+  const router = useRouter()
+  const isHomePage = router.pathname === '/'
+
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const [accountOpen, setAccountOpen] = useState(false)
@@ -70,11 +74,11 @@ export default function Navbar() {
     return () => data.subscription.unsubscribe()
   }, [])
 
-  // ── Load shoe catalog from correct table name ─────────────────────────
+  // ── Load shoe catalog ─────────────────────────────────────────────────
   useEffect(() => {
     const fetchShoes = async () => {
       const { data } = await supabase
-        .from('shoe')             // ← your actual table name
+        .from('shoe')
         .select('id, name, width, category')
       if (data) setAllShoes(data)
     }
@@ -120,7 +124,7 @@ export default function Navbar() {
   const handleSuggestionClick = (shoe: Shoe) => {
     setQuery(shoe.name)
     setShowSuggestions(false)
-    window.location.href = `/catalog?search=${encodeURIComponent(shoe.name)}`
+    router.push(`/catalog?search=${encodeURIComponent(shoe.name)}`)
   }
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -130,7 +134,7 @@ export default function Navbar() {
     params.set('search', query)
     if (selectedWidths.length) params.set('widths', selectedWidths.join(','))
     if (selectedCategories.length) params.set('categories', selectedCategories.join(','))
-    window.location.href = `/catalog?${params.toString()}`
+    router.push(`/catalog?${params.toString()}`)
     setShowSuggestions(false)
   }
 
@@ -140,15 +144,19 @@ export default function Navbar() {
       {/* ── Logo ── */}
       <h1 className="text-2xl font-bold w-32 shrink-0">SoleMate</h1>
 
-      {/* ── Search + Filter ── */}
+      {/* ── Search + Filter (filter hidden on home page) ── */}
       <div className="flex items-center gap-2 flex-1 max-w-xl mx-8">
 
+        {/* Search bar */}
         <div ref={searchRef} className="relative flex-1">
           <form onSubmit={handleSearchSubmit}>
             <div className="relative w-full">
-              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none"
-                fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+              <svg
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none"
+                fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.35-4.35" />
               </svg>
               <input
                 type="text"
@@ -161,9 +169,11 @@ export default function Navbar() {
                            bg-gray-50 transition"
               />
               {query && (
-                <button type="button"
+                <button
+                  type="button"
                   onClick={() => { setQuery(''); setSuggestions([]); setShowSuggestions(false) }}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                     <path d="M18 6L6 18M6 6l12 12" />
                   </svg>
@@ -172,28 +182,37 @@ export default function Navbar() {
             </div>
           </form>
 
-          {/* Suggestions */}
+          {/* Autocomplete suggestions */}
           {showSuggestions && suggestions.length > 0 && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200
                             rounded-lg shadow-lg overflow-hidden z-50">
               {suggestions.map(shoe => (
-                <button key={shoe.id} onClick={() => handleSuggestionClick(shoe)}
+                <button
+                  key={shoe.id}
+                  onClick={() => handleSuggestionClick(shoe)}
                   className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center
-                             justify-between gap-2 border-b last:border-0 border-gray-50">
+                             justify-between gap-2 border-b last:border-0 border-gray-50"
+                >
                   <span className="font-medium text-gray-800 truncate">{shoe.name}</span>
                   <span className="flex gap-1.5 shrink-0">
                     {shoe.category && (
-                      <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">{shoe.category}</span>
+                      <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                        {shoe.category}
+                      </span>
                     )}
-                    {shoe.width && shoe.width !== 'Standard' && (
-                      <span className="text-xs bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full">{shoe.width}</span>
+                    {shoe.width && shoe.width.toLowerCase() !== 'standard' && (
+                      <span className="text-xs bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full">
+                        {shoe.width}
+                      </span>
                     )}
                   </span>
                 </button>
               ))}
-              <button onClick={handleSearchSubmit as never}
+              <button
+                onClick={handleSearchSubmit as never}
                 className="w-full text-left px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50
-                           border-t border-gray-100 flex items-center gap-2">
+                           border-t border-gray-100 flex items-center gap-2"
+              >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                   <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
                 </svg>
@@ -210,62 +229,84 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Filter */}
-        <div ref={filterRef} className="relative shrink-0">
-          <button onClick={() => setFilterOpen(!filterOpen)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-sm border rounded-lg transition font-medium
-                        ${activeFilterCount > 0 ? 'bg-black text-white border-black' : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'}`}>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path d="M3 6h18M7 12h10M11 18h2" strokeLinecap="round" />
-            </svg>
-            Filters
-            {activeFilterCount > 0 && (
-              <span className="ml-0.5 bg-white text-black text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
+        {/* Filter button — hidden on home page */}
+        {!isHomePage && (
+          <div ref={filterRef} className="relative shrink-0">
+            <button
+              onClick={() => setFilterOpen(!filterOpen)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm border rounded-lg transition font-medium
+                          ${activeFilterCount > 0
+                            ? 'bg-black text-white border-black'
+                            : 'bg-white text-gray-700 border-gray-200 hover:border-gray-400'
+                          }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path d="M3 6h18M7 12h10M11 18h2" strokeLinecap="round" />
+              </svg>
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="ml-0.5 bg-white text-black text-xs font-bold rounded-full
+                                 w-4 h-4 flex items-center justify-center leading-none">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
 
-          {filterOpen && (
-            <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl p-4 z-50">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Width</p>
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {WIDTHS.map(w => (
-                  <button key={w} onClick={() => toggleWidth(w)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition font-medium
-                                ${selectedWidths.includes(w) ? 'bg-black text-white border-black' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
-                    {w}
+            {filterOpen && (
+              <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200
+                              rounded-xl shadow-xl p-4 z-50">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Width</p>
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {WIDTHS.map(w => (
+                    <button key={w} onClick={() => toggleWidth(w)}
+                      className={`text-xs px-3 py-1.5 rounded-full border transition font-medium
+                                  ${selectedWidths.includes(w)
+                                    ? 'bg-black text-white border-black'
+                                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                                  }`}>
+                      {w}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Activity / Use</p>
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {CATEGORIES.map(c => (
+                    <button key={c} onClick={() => toggleCategory(c)}
+                      className={`text-xs px-3 py-1.5 rounded-full border transition font-medium
+                                  ${selectedCategories.includes(c)
+                                    ? 'bg-black text-white border-black'
+                                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                                  }`}>
+                      {c}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2 pt-1 border-t border-gray-100">
+                  {activeFilterCount > 0 && (
+                    <button
+                      onClick={() => { setSelectedWidths([]); setSelectedCategories([]) }}
+                      className="flex-1 text-xs py-1.5 text-gray-500 hover:text-black transition"
+                    >
+                      Clear all
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setFilterOpen(false)
+                      if (query.trim()) handleSearchSubmit({ preventDefault: () => {} } as React.FormEvent)
+                    }}
+                    className="flex-1 text-xs py-1.5 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition"
+                  >
+                    Apply
                   </button>
-                ))}
+                </div>
               </div>
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Activity / Use</p>
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {CATEGORIES.map(c => (
-                  <button key={c} onClick={() => toggleCategory(c)}
-                    className={`text-xs px-3 py-1.5 rounded-full border transition font-medium
-                                ${selectedCategories.includes(c) ? 'bg-black text-white border-black' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
-                    {c}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2 pt-1 border-t border-gray-100">
-                {activeFilterCount > 0 && (
-                  <button onClick={() => { setSelectedWidths([]); setSelectedCategories([]) }}
-                    className="flex-1 text-xs py-1.5 text-gray-500 hover:text-black transition">
-                    Clear all
-                  </button>
-                )}
-                <button onClick={() => { setFilterOpen(false); if (query.trim()) handleSearchSubmit({ preventDefault: () => {} } as React.FormEvent) }}
-                  className="flex-1 text-xs py-1.5 bg-black text-white rounded-lg font-medium hover:bg-gray-800 transition">
-                  Apply
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* ── Nav links + Account dropdown ── */}
+      {/* ── Nav links + Account ── */}
       <div className="flex gap-6 text-sm font-medium items-center w-48 justify-end shrink-0">
         <Link href="/" className="hover:text-gray-500 transition">Home</Link>
         <Link href="/catalog" className="hover:text-gray-500 transition">Catalog</Link>
@@ -289,13 +330,12 @@ export default function Navbar() {
 
             {accountOpen && (
               <div className="absolute right-0 mt-2 w-52 bg-white border border-gray-200 shadow-lg rounded-xl p-2 z-50">
-
                 {/* Email */}
                 <p className="text-xs text-gray-400 px-2 py-1.5 border-b border-gray-100 truncate mb-1">
                   {user.email}
                 </p>
 
-                {/* Questionnaire — moved from home page */}
+                {/* Questionnaire */}
                 <Link
                   href="/questionnaire"
                   onClick={() => setAccountOpen(false)}
