@@ -6,37 +6,16 @@ import { supabase } from '../lib/supabase'
 import type { User } from '@supabase/supabase-js'
 
 interface Shoe {
-  id: string | number
+  id: number
   name: string
-  width?: string
-  category?: string
+  model_line: string
+  image_url: string
+  category: string
+  width: string
 }
 
 const WIDTHS = ['Narrow', 'Standard', 'Wide', 'Extra Wide']
 const CATEGORIES = ['Running', 'Sports', 'Hiking', 'Basketball', 'Casual', 'Training', 'Walking', 'Sandals']
-
-function levenshtein(a: string, b: string): number {
-  const dp: number[][] = Array.from({ length: a.length + 1 }, (_, i) =>
-    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0))
-  )
-  for (let i = 1; i <= a.length; i++)
-    for (let j = 1; j <= b.length; j++)
-      dp[i][j] =
-        a[i - 1] === b[j - 1]
-          ? dp[i - 1][j - 1]
-          : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
-  return dp[a.length][b.length]
-}
-
-function fuzzyMatch(query: string, target: string): boolean {
-  const q = query.toLowerCase().trim()
-  const t = target.toLowerCase()
-  if (!q) return false
-  if (t.includes(q)) return true
-  const words = t.split(' ')
-  const threshold = Math.floor(q.length / 4) + 1
-  return words.some(word => levenshtein(q, word) <= threshold && word.length > 2)
-}
 
 export default function Navbar() {
   const router = useRouter()
@@ -46,11 +25,14 @@ export default function Navbar() {
   const [loading, setLoading] = useState(true)
   const [accountOpen, setAccountOpen] = useState(false)
 
+  // Search
   const [query, setQuery] = useState('')
-  const [suggestions, setSuggestions] = useState<Shoe[]>([])
   const [allShoes, setAllShoes] = useState<Shoe[]>([])
+  const [suggestions, setSuggestions] = useState<Shoe[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [searchLoading, setSearchLoading] = useState(false)
 
+  // Filters
   const [filterOpen, setFilterOpen] = useState(false)
   const [selectedWidths, setSelectedWidths] = useState<string[]>([])
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
@@ -74,35 +56,57 @@ export default function Navbar() {
     return () => data.subscription.unsubscribe()
   }, [])
 
-  // ── Load shoe catalog ─────────────────────────────────────────────────
+  // ── Load ALL shoes once into memory for instant search ────────────────
   useEffect(() => {
     const fetchShoes = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('shoe')
-        .select('id, name, width, category')
-      if (data) setAllShoes(data)
+        .select('id, name, model_line, image_url, category, width')
+      if (!error && data) setAllShoes(data)
     }
     fetchShoes()
   }, [])
 
-  // ── Fuzzy suggestions ─────────────────────────────────────────────────
+  // ── Filter suggestions whenever query changes ─────────────────────────
   useEffect(() => {
-    if (!query.trim()) { setSuggestions([]); return }
-    const filtered = allShoes.filter(shoe => {
-      const matchesQuery = fuzzyMatch(query, shoe.name)
-      const matchesWidth = selectedWidths.length === 0 || (shoe.width && selectedWidths.includes(shoe.width))
-      const matchesCategory = selectedCategories.length === 0 || (shoe.category && selectedCategories.includes(shoe.category))
-      return matchesQuery && matchesWidth && matchesCategory
+    const q = query.trim().toLowerCase()
+
+    if (!q) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+
+    // Match: name contains query OR model_line contains query (fuzzy-tolerant)
+    const matched = allShoes.filter(shoe => {
+      const nameMatch = shoe.name.toLowerCase().includes(q)
+      const modelMatch = shoe.model_line?.toLowerCase().includes(q)
+
+      // Also apply active filters if any are set
+      const widthMatch = selectedWidths.length === 0 ||
+        selectedWidths.some(w => shoe.width?.toLowerCase() === w.toLowerCase())
+      const catMatch = selectedCategories.length === 0 ||
+        selectedCategories.some(c => shoe.category?.toLowerCase() === c.toLowerCase())
+
+      return (nameMatch || modelMatch) && widthMatch && catMatch
     })
-    setSuggestions(filtered.slice(0, 6))
+
+    setSuggestions(matched.slice(0, 7))
+    setShowSuggestions(true)
   }, [query, allShoes, selectedWidths, selectedCategories])
 
-  // ── Close on outside click ────────────────────────────────────────────
+  // ── Close dropdowns on outside click ─────────────────────────────────
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSuggestions(false)
-      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false)
-      if (accountRef.current && !accountRef.current.contains(e.target as Node)) setAccountOpen(false)
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false)
+      }
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setFilterOpen(false)
+      }
+      if (accountRef.current && !accountRef.current.contains(e.target as Node)) {
+        setAccountOpen(false)
+      }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -121,36 +125,43 @@ export default function Navbar() {
 
   const activeFilterCount = selectedWidths.length + selectedCategories.length
 
+  // Clicking a suggestion → go directly to that shoe's page
   const handleSuggestionClick = (shoe: Shoe) => {
-    setQuery(shoe.name)
+    setQuery('')
+    setSuggestions([])
     setShowSuggestions(false)
-    router.push(`/catalog?search=${encodeURIComponent(shoe.name)}`)
+    router.push(`/shoes/${shoe.id}`)
   }
 
+  // Pressing Enter → go to catalog with search param
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!query.trim()) return
     const params = new URLSearchParams()
-    params.set('search', query)
+    params.set('search', query.trim())
     if (selectedWidths.length) params.set('widths', selectedWidths.join(','))
     if (selectedCategories.length) params.set('categories', selectedCategories.join(','))
     router.push(`/catalog?${params.toString()}`)
     setShowSuggestions(false)
+    setQuery('')
   }
 
   return (
     <nav className="flex justify-between items-center px-8 py-4 border-b relative bg-white z-50">
 
       {/* ── Logo ── */}
-      <h1 className="text-2xl font-bold w-32 shrink-0">SoleMate</h1>
+      <h1 className="text-2xl font-bold w-32 shrink-0">
+        <Link href="/">SoleMate</Link>
+      </h1>
 
-      {/* ── Search + Filter (filter hidden on home page) ── */}
+      {/* ── Search + Filter ── */}
       <div className="flex items-center gap-2 flex-1 max-w-xl mx-8">
 
-        {/* Search bar */}
+        {/* Search */}
         <div ref={searchRef} className="relative flex-1">
           <form onSubmit={handleSearchSubmit}>
             <div className="relative w-full">
+              {/* Search icon */}
               <svg
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none"
                 fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"
@@ -158,16 +169,19 @@ export default function Navbar() {
                 <circle cx="11" cy="11" r="8" />
                 <path d="M21 21l-4.35-4.35" />
               </svg>
+
               <input
                 type="text"
                 value={query}
-                onChange={e => { setQuery(e.target.value); setShowSuggestions(true) }}
-                onFocus={() => query && setShowSuggestions(true)}
-                placeholder="Search shoes..."
-                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg
+                onChange={e => setQuery(e.target.value)}
+                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                placeholder="Search shoes by name..."
+                className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg
                            focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent
                            bg-gray-50 transition"
               />
+
+              {/* Clear button */}
               {query && (
                 <button
                   type="button"
@@ -182,49 +196,78 @@ export default function Navbar() {
             </div>
           </form>
 
-          {/* Autocomplete suggestions */}
-          {showSuggestions && suggestions.length > 0 && (
+          {/* ── Dropdown ── */}
+          {showSuggestions && (
             <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200
-                            rounded-lg shadow-lg overflow-hidden z-50">
-              {suggestions.map(shoe => (
-                <button
-                  key={shoe.id}
-                  onClick={() => handleSuggestionClick(shoe)}
-                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 flex items-center
-                             justify-between gap-2 border-b last:border-0 border-gray-50"
-                >
-                  <span className="font-medium text-gray-800 truncate">{shoe.name}</span>
-                  <span className="flex gap-1.5 shrink-0">
-                    {shoe.category && (
-                      <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-                        {shoe.category}
-                      </span>
-                    )}
-                    {shoe.width && shoe.width.toLowerCase() !== 'standard' && (
-                      <span className="text-xs bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full">
-                        {shoe.width}
-                      </span>
-                    )}
-                  </span>
-                </button>
-              ))}
-              <button
-                onClick={handleSearchSubmit as never}
-                className="w-full text-left px-4 py-2.5 text-sm text-gray-400 hover:bg-gray-50
-                           border-t border-gray-100 flex items-center gap-2"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                  <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-                </svg>
-                Search all for "<span className="text-gray-600 font-medium">{query}</span>"
-              </button>
-            </div>
-          )}
+                            rounded-xl shadow-xl overflow-hidden z-50">
 
-          {showSuggestions && query.trim() && suggestions.length === 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200
-                            rounded-lg shadow-lg px-4 py-3 text-sm text-gray-400 z-50">
-              No shoes found — try a different spelling
+              {suggestions.length > 0 ? (
+                <>
+                  {suggestions.map(shoe => (
+                    <button
+                      key={shoe.id}
+                      onMouseDown={() => handleSuggestionClick(shoe)}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50
+                                 border-b border-gray-50 last:border-0 transition text-left"
+                    >
+                      {/* Shoe image */}
+                      <div className="w-12 h-12 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
+                        {shoe.image_url ? (
+                          <img
+                            src={shoe.image_url}
+                            alt={shoe.name}
+                            className="w-full h-full object-contain p-1"
+                          />
+                        ) : (
+                          <svg className="w-6 h-6 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path d="M3 7h18M3 12h18M3 17h18" strokeLinecap="round" />
+                          </svg>
+                        )}
+                      </div>
+
+                      {/* Shoe info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{shoe.name}</p>
+                        <p className="text-xs text-gray-400 truncate">{shoe.model_line}</p>
+                      </div>
+
+                      {/* Badges */}
+                      <div className="flex flex-col gap-1 items-end shrink-0">
+                        {shoe.category && (
+                          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                            {shoe.category}
+                          </span>
+                        )}
+                        {shoe.width && shoe.width.toLowerCase() !== 'standard' && (
+                          <span className="text-xs bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full">
+                            {shoe.width}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+
+                  {/* "See all results" footer */}
+                  <button
+                    onMouseDown={handleSearchSubmit as never}
+                    className="w-full px-4 py-2.5 text-xs text-gray-400 hover:bg-gray-50
+                               border-t border-gray-100 flex items-center gap-2 transition"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+                    </svg>
+                    See all results for{' '}
+                    <span className="text-gray-700 font-medium">"{query}"</span>
+                  </button>
+                </>
+              ) : (
+                <div className="px-4 py-4 text-sm text-gray-400 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+                  </svg>
+                  No shoes found for "{query}"
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -268,6 +311,7 @@ export default function Navbar() {
                     </button>
                   ))}
                 </div>
+
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Activity / Use</p>
                 <div className="flex flex-wrap gap-1.5 mb-4">
                   {CATEGORIES.map(c => (
@@ -281,6 +325,7 @@ export default function Navbar() {
                     </button>
                   ))}
                 </div>
+
                 <div className="flex gap-2 pt-1 border-t border-gray-100">
                   {activeFilterCount > 0 && (
                     <button
@@ -322,20 +367,20 @@ export default function Navbar() {
               className="flex items-center gap-1.5 hover:text-gray-500 transition"
             >
               Account
-              <svg className={`w-3 h-3 transition-transform duration-200 ${accountOpen ? 'rotate-180' : ''}`}
-                fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <svg
+                className={`w-3 h-3 transition-transform duration-200 ${accountOpen ? 'rotate-180' : ''}`}
+                fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"
+              >
                 <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
 
             {accountOpen && (
               <div className="absolute right-0 mt-2 w-52 bg-white border border-gray-200 shadow-lg rounded-xl p-2 z-50">
-                {/* Email */}
                 <p className="text-xs text-gray-400 px-2 py-1.5 border-b border-gray-100 truncate mb-1">
                   {user.email}
                 </p>
 
-                {/* Questionnaire */}
                 <Link
                   href="/questionnaire"
                   onClick={() => setAccountOpen(false)}
@@ -350,7 +395,6 @@ export default function Navbar() {
                   Shoe Fit Questionnaire
                 </Link>
 
-                {/* Logout */}
                 <button
                   onClick={handleLogout}
                   className="flex items-center gap-2.5 px-2 py-2 text-sm text-red-500
