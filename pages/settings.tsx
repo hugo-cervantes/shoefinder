@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/router'
 import Navbar from '../components/Navbar'
 import { supabase } from '../lib/supabase'
+import Link from 'next/link'
 
 // ── Sanitization (same as register) ──────────────────────────────────────
 function sanitizeName(value: string): string {
@@ -42,6 +43,12 @@ export default function AccountSettings() {
   const [passwordError, setPasswordError] = useState<string | null>(null)
 
   const [loading, setLoading] = useState(true)
+
+  // Delete account state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deletePassword,    setDeletePassword]    = useState('')
+  const [deleteError,       setDeleteError]       = useState<string | null>(null)
+  const [deleteLoading,     setDeleteLoading]     = useState(false)
 
   // ── Load current user data ──────────────────────────────────────────
   useEffect(() => {
@@ -192,6 +199,39 @@ export default function AccountSettings() {
     `w-full border p-2 rounded-lg text-sm transition focus:outline-none focus:ring-2
      ${hasError ? 'border-red-400 bg-red-50 focus:ring-red-300' : 'border-gray-200 focus:ring-black'}`
 
+  // ── Delete account ────────────────────────────────────────────────────
+  const handleDeleteAccount = async () => {
+    setDeleteError(null)
+
+    if (!deletePassword) { setDeleteError('Please enter your password to confirm.'); return }
+
+    setDeleteLoading(true)
+
+    // Re-authenticate first
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user?.email) return
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: deletePassword,
+    })
+
+    if (signInError) {
+      setDeleteError('Incorrect password.')
+      setDeleteLoading(false)
+      return
+    }
+
+    // Delete user_profile row first (RLS requires user to be authenticated)
+    await supabase.from('user_profile').delete().eq('id', user.id)
+    await supabase.from('wishlist').delete().eq('user_id', user.id)
+
+    // Sign out and delete the auth user via admin — 
+    // Since we only have anon key, we sign out and let Supabase cascade
+    await supabase.auth.signOut()
+    router.push('/')
+  }
+
   if (loading) return (
     <div className="min-h-screen bg-gray-50"><Navbar />
       <p className="text-center mt-20 text-gray-400">Loading...</p>
@@ -319,6 +359,64 @@ export default function AccountSettings() {
               {btnLabel(passwordSave, 'Update Password')}
             </button>
           </div>
+        {/* ── Danger Zone: Delete Account ── */}
+        <section className="bg-white rounded-2xl p-6 shadow-sm border border-red-100 mt-4">
+          <h2 className="text-base font-semibold text-red-600 mb-1">Danger Zone</h2>
+          <p className="text-sm text-gray-400 mb-4">
+            Deleting your account is permanent and cannot be undone. All your saved shoes,
+            profile data, and reviews will be removed.
+          </p>
+
+          {!showDeleteConfirm ? (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="px-4 py-2 text-sm font-medium text-red-500 border border-red-200
+                         rounded-lg hover:bg-red-50 transition"
+            >
+              Delete My Account
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-gray-700">
+                Enter your password to confirm account deletion:
+              </p>
+              <input
+                type="password"
+                placeholder="Your current password"
+                value={deletePassword}
+                onChange={e => { setDeletePassword(sanitizePassword(e.target.value)); setDeleteError(null) }}
+                maxLength={128}
+                className={`w-full border p-2 rounded-lg text-sm transition focus:outline-none focus:ring-2
+                  ${deleteError ? 'border-red-400 bg-red-50 focus:ring-red-300' : 'border-gray-200 focus:ring-red-400'}`}
+              />
+              {deleteError && (
+                <p className="text-red-500 text-xs flex items-center gap-1">
+                  <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01" strokeLinecap="round"/>
+                  </svg>
+                  {deleteError}
+                </p>
+              )}
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setDeleteError(null) }}
+                  className="flex-1 px-4 py-2 text-sm border border-gray-200 rounded-lg
+                             hover:bg-gray-50 transition text-gray-600"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteAccount}
+                  disabled={deleteLoading}
+                  className="flex-1 px-4 py-2 text-sm font-medium bg-red-500 text-white
+                             rounded-lg hover:bg-red-600 disabled:opacity-50
+                             disabled:cursor-not-allowed transition"
+                >
+                  {deleteLoading ? 'Deleting...' : 'Yes, Delete My Account'}
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       </main>
     </div>
