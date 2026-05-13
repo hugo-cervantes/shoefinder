@@ -255,12 +255,19 @@ export default function Login() {
             {loading ? 'Logging in...' : lockedOut ? `Wait ${cooldown}s` : 'Login'}
           </button>
 
-          <p className="text-sm text-center mt-4">
-            Don&apos;t have an account?{' '}
-            <Link href="/register" className="text-blue-500 hover:underline">
-              Sign up
-            </Link>
-          </p>
+          <div className="mt-4 space-y-2 text-center">
+            <p className="text-sm">
+              <Link href="/forgot-password" className="text-gray-400 hover:text-black transition text-sm">
+                Forgot your password?
+              </Link>
+            </p>
+            <p className="text-sm">
+              Don&apos;t have an account?{' '}
+              <Link href="/register" className="text-blue-500 hover:underline">
+                Sign up
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
