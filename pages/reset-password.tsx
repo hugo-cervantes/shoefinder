@@ -148,7 +148,7 @@ export default function ResetPassword() {
               type="submit"
               disabled={loading}
               className="w-full bg-black text-white py-2 rounded-lg hover:bg-gray-800
-                         disabled:opacity-50 disabled:cursor-not-allowed transition text-sm !mt-4"
+                         disabled:opacity-50 disabled:cursor-not-allowed transition text-sm mt-4"
             >
               {loading ? 'Updating...' : 'Update Password'}
             </button>
