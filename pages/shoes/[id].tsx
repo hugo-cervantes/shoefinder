@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
-import { BRANDS, BrandKey, BrandSizes, getAllConversions, detectBrand, buildSizeUrl } from "../../lib/brandSizes";
+import { BRANDS, BrandKey, BrandSizes, getAllConversions, detectBrand } from "../../lib/brandSizes";
 import Link from "next/link";
 import Navbar from "../../components/Navbar";
 
@@ -43,7 +43,6 @@ export default function ShoePage() {
 
   // Brand size
   const [brandSizes, setBrandSizes]         = useState<BrandSizes | null>(null);
-  const [sizeUrl, setSizeUrl]               = useState<string | null>(null);
   const [detectedBrand, setDetectedBrand]   = useState<BrandKey | null>(null);
   const [userSizeForBrand, setUserSizeForBrand] = useState<number | null>(null);
 
@@ -102,25 +101,18 @@ export default function ShoePage() {
     loadUserData();
   }, [router.isReady, id]);
 
-  // ── Build size-aware URL once we have shoe + brand sizes ──────────────
+  // ── Build size info once we have shoe + brand sizes ──────────────────
   useEffect(() => {
     if (!shoe?.external_url || !brandSizes) return;
 
     const brand = detectBrand(shoe.external_url);
     setDetectedBrand(brand);
-
     if (!brand) return;
 
-    // Get all conversions and find size for this brand
     const conversions = getAllConversions(brandSizes);
     if (!conversions) return;
 
-    const size = conversions[brand];
-    setUserSizeForBrand(size);
-
-    // Build the URL with size pre-filled
-    const url = buildSizeUrl(shoe.external_url, brand, size);
-    setSizeUrl(url);
+    setUserSizeForBrand(conversions[brand]);
   }, [shoe, brandSizes]);
 
   // ── Toggle wishlist ───────────────────────────────────────────────────
@@ -251,7 +243,7 @@ export default function ShoePage() {
             {shoe.external_url && (
               <div className="mt-6">
                 <a
-                  href={sizeUrl ?? shoe.external_url}
+                  href={shoe.external_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-block bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition"
@@ -259,23 +251,29 @@ export default function ShoePage() {
                   View on {brandLabel ?? "Brand"} Site
                 </a>
 
-                {/* Size pre-fill confirmation */}
+                {/* Show user's size for this brand */}
                 {userSizeForBrand && brandLabel && (
-                  <p className="mt-2 text-xs text-green-600 flex items-center gap-1.5">
-                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                      <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                  <div className="mt-3 flex items-center gap-2 bg-gray-50 border border-gray-200
+                                  rounded-lg px-4 py-2.5 w-fit">
+                    <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor"
+                      strokeWidth={2} viewBox="0 0 24 24">
+                      <path d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"
+                        strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    Your {brandLabel} size ({userSizeForBrand}) will be pre-selected on their site
-                  </p>
+                    <span className="text-sm text-gray-600">
+                      Your {brandLabel} size:{" "}
+                      <span className="font-bold text-gray-900">{userSizeForBrand}</span>
+                    </span>
+                  </div>
                 )}
 
                 {/* Prompt to set brand sizes if not set */}
-                {brandSizes && !userSizeForBrand && detectedBrand && (
+                {!userSizeForBrand && detectedBrand && (
                   <p className="mt-2 text-xs text-gray-400">
-                    <Link href="/questionnaire" className="underline hover:text-black transition">
-                      Set your {brandLabel} size
+                    <Link href="/settings" className="underline hover:text-black transition">
+                      Add your {brandLabel} size in settings
                     </Link>{" "}
-                    to auto-fill on their site
+                    to see your size here
                   </p>
                 )}
               </div>
