@@ -6,3 +6,6 @@
 body {
   @apply bg-white text-gray-900;
 }
+nextjs-portal {
+  display: none !important;
+}
