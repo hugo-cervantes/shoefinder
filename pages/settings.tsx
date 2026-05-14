@@ -3,6 +3,7 @@ import { useRouter } from 'next/router'
 import Navbar from '../components/Navbar'
 import { supabase } from '../lib/supabase'
 import Link from 'next/link'
+import { BRANDS, BrandKey, BrandSizes } from '../lib/brandSizes'
 
 // ── Sanitization (same as register) ──────────────────────────────────────
 function sanitizeName(value: string): string {
@@ -50,6 +51,14 @@ export default function AccountSettings() {
   const [deleteError,       setDeleteError]       = useState<string | null>(null)
   const [deleteLoading,     setDeleteLoading]     = useState(false)
 
+  // Brand sizes state
+  const [brandSizes,    setBrandSizes]    = useState<BrandSizes>({})
+  const [activeBrands,  setActiveBrands]  = useState<BrandKey[]>([])
+  const [brandSave,     setBrandSave]     = useState<SaveState>('idle')
+  const [brandError,    setBrandError]    = useState<string | null>(null)
+
+  const BRAND_SIZE_OPTIONS = Array.from({ length: 29 }, (_, i) => +(4 + i * 0.5).toFixed(1))
+
   // ── Load current user data ──────────────────────────────────────────
   useEffect(() => {
     const load = async () => {
@@ -60,19 +69,66 @@ export default function AccountSettings() {
 
       const { data: profile } = await supabase
         .from('user_profile')
-        .select('first_name, last_name')
+        .select('first_name, last_name, brand_sizes')
         .eq('id', user.id)
         .single()
 
       if (profile) {
         setFirstName(profile.first_name ?? '')
         setLastName(profile.last_name  ?? '')
+
+        // Load brand sizes
+        if (profile.brand_sizes) {
+          const stored = profile.brand_sizes as BrandSizes
+          setBrandSizes(stored)
+          setActiveBrands(Object.keys(stored).filter(k => stored[k as BrandKey] != null) as BrandKey[])
+        }
       }
 
       setLoading(false)
     }
     load()
   }, [])
+
+  // ── Save brand sizes ──────────────────────────────────────────────────
+  const handleSaveBrandSizes = async () => {
+    setBrandError(null)
+    setBrandSave('saving')
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const cleanSizes: BrandSizes = {}
+    for (const key of activeBrands) {
+      if (brandSizes[key] != null) cleanSizes[key] = brandSizes[key]
+    }
+
+    const { error } = await supabase
+      .from('user_profile')
+      .update({ brand_sizes: cleanSizes })
+      .eq('id', user.id)
+
+    if (error) {
+      setBrandError('Failed to save brand sizes.')
+      setBrandSave('error')
+    } else {
+      setBrandSave('saved')
+      setTimeout(() => setBrandSave('idle'), 3000)
+    }
+  }
+
+  const toggleBrand = (key: BrandKey) => {
+    if (activeBrands.includes(key)) {
+      setActiveBrands(prev => prev.filter(b => b !== key))
+      setBrandSizes(prev => { const n = { ...prev }; delete n[key]; return n })
+    } else {
+      setActiveBrands(prev => [...prev, key])
+    }
+  }
+
+  const setBrandSize = (key: BrandKey, size: number | '') => {
+    setBrandSizes(prev => ({ ...prev, [key]: size === '' ? undefined : size }))
+  }
 
   // ── Save name ─────────────────────────────────────────────────────────
   const handleSaveName = async () => {
@@ -232,7 +288,7 @@ export default function AccountSettings() {
 
     // Call the edge function which uses the admin key to fully delete the account
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/dynamic-handler`,
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/delete-user`,
       {
         method: 'POST',
         headers: {
@@ -380,6 +436,61 @@ export default function AccountSettings() {
               className={btnClass(passwordSave)}
             >
               {btnLabel(passwordSave, 'Update Password')}
+            </button>
+          </div>
+        </section>
+
+        {/* ── Brand Sizes ── */}
+        <section className="bg-white rounded-2xl p-6 shadow-sm mb-4">
+          <h2 className="text-base font-semibold mb-1">Brand Sizes</h2>
+          <p className="text-sm text-gray-400 mb-4">
+            Enter your size for each brand you own shoes from — we'll auto-fill your size when you visit their site.
+          </p>
+
+          {/* Brand toggle pills */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {BRANDS.map(brand => (
+              <button key={brand.key} type="button" onClick={() => toggleBrand(brand.key)}
+                className={`text-sm px-3 py-1.5 rounded-full border font-medium transition
+                  ${activeBrands.includes(brand.key)
+                    ? 'bg-black text-white border-black'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'
+                  }`}>
+                {brand.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Size inputs */}
+          {activeBrands.length > 0 && (
+            <div className="space-y-3 mb-4">
+              {activeBrands.map(key => {
+                const brand = BRANDS.find(b => b.key === key)!
+                return (
+                  <div key={key} className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-700 w-28 shrink-0">{brand.label} size</span>
+                    <select
+                      value={brandSizes[key] ?? ''}
+                      onChange={e => setBrandSize(key, e.target.value === '' ? '' : Number(e.target.value))}
+                      className="flex-1 p-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-black"
+                    >
+                      <option value="">Select size</option>
+                      {BRAND_SIZE_OPTIONS.map(size => (
+                        <option key={size} value={size}>{size}</option>
+                      ))}
+                    </select>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {brandError && <p className="text-red-500 text-xs mb-2">{brandError}</p>}
+
+          <div className="flex justify-end">
+            <button onClick={handleSaveBrandSizes} disabled={brandSave === 'saving'}
+              className={btnClass(brandSave)}>
+              {btnLabel(brandSave, 'Save Brand Sizes')}
             </button>
           </div>
         </section>
