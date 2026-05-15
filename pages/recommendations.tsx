@@ -15,7 +15,7 @@ interface Shoe {
 }
 
 interface ScoredShoe extends Shoe {
-  fitScore: number;
+  fitScore: number | null;  // null until AI scores it
 }
 
 interface UserProfile {
@@ -31,53 +31,12 @@ const CATEGORY_MAP: Record<number, string> = {
   1: "Running", 2: "Casual", 3: "Sports", 4: "Hiking",
 }
 
-// ── Client-side fit scoring ───────────────────────────────────────────────
-// Returns 0–100. Higher = better match.
-function scoreShoe(shoe: Shoe, profile: UserProfile): number {
-  let score = 0
-
-  // Width match (40 pts) — exact match scores full, partial (adjacent) scores half
-  const userWidths = profile.shoe_widths?.length ? profile.shoe_widths : [profile.shoe_width]
-  if (userWidths.includes(shoe.width)) {
-    score += 40
-  } else {
-    // Adjacent width gets partial credit
-    const widthOrder = ['narrow', 'medium', 'wide', 'extra-wide', 'extra wide']
-    const shoeIdx  = widthOrder.indexOf(shoe.width?.toLowerCase())
-    const adjacent = userWidths.some(w => Math.abs(widthOrder.indexOf(w) - shoeIdx) === 1)
-    if (adjacent) score += 20
-  }
-
-  // Category match (35 pts)
-  const userCats = profile.category_ids?.length ? profile.category_ids : [profile.category_id]
-  if (userCats.includes(shoe.category_id)) {
-    score += 35
-  }
-
-  // Gender match (15 pts) — unisex counts as match for everyone
-  if (
-    shoe.gender?.toLowerCase() === profile.gender?.toLowerCase() ||
-    shoe.gender?.toLowerCase() === 'unisex' ||
-    shoe.gender?.toLowerCase() === 'men' && profile.gender === 'male' ||
-    shoe.gender?.toLowerCase() === 'women' && profile.gender === 'female'
-  ) {
-    score += 15
-  }
-
-  // Brand size data bonus (10 pts) — user has brand size info, shows investment in fit
-  if (profile.brand_sizes && Object.keys(profile.brand_sizes).length > 0) {
-    score += 10
-  }
-
-  return Math.min(score, 100)
-}
-
-// Score ring color
+// ── Score helpers (AI-driven) ─────────────────────────────────────────────
 function scoreColor(score: number): string {
-  if (score >= 85) return '#22c55e'  // green
-  if (score >= 70) return '#3b82f6'  // blue
-  if (score >= 55) return '#f59e0b'  // amber
-  return '#ef4444'                    // red
+  if (score >= 85) return '#22c55e'
+  if (score >= 70) return '#3b82f6'
+  if (score >= 55) return '#f59e0b'
+  return '#ef4444'
 }
 
 function scoreLabel(score: number): string {
@@ -87,25 +46,25 @@ function scoreLabel(score: number): string {
   return 'Partial fit'
 }
 
-// SVG circular score ring
-function ScoreRing({ score }: { score: number }) {
+function ScoreRing({ score }: { score: number | null }) {
   const r = 18
   const circ = 2 * Math.PI * r
-  const filled = (score / 100) * circ
-  const color = scoreColor(score)
+  const filled = score != null ? (score / 100) * circ : 0
+  const color = score != null ? scoreColor(score) : '#e5e7eb'
 
   return (
     <div className="relative flex items-center justify-center w-14 h-14 shrink-0">
       <svg className="absolute inset-0 -rotate-90" width="56" height="56" viewBox="0 0 56 56">
-        {/* Background ring */}
         <circle cx="28" cy="28" r={r} fill="none" stroke="#e5e7eb" strokeWidth="4" />
-        {/* Score ring */}
         <circle cx="28" cy="28" r={r} fill="none"
           stroke={color} strokeWidth="4"
           strokeDasharray={`${filled} ${circ}`}
           strokeLinecap="round" />
       </svg>
-      <span className="text-xs font-bold" style={{ color }}>{score}</span>
+      {score != null
+        ? <span className="text-xs font-bold" style={{ color }}>{score}</span>
+        : <span className="text-xs text-gray-300">—</span>
+      }
     </div>
   )
 }
@@ -154,10 +113,9 @@ export default function Recommendations() {
 
       if (shoeError) { console.error(shoeError); setLoading(false); return }
 
-      // Score and sort
+      // fitScore starts null — AI will fill it in when user clicks
       const scored: ScoredShoe[] = (shoeData || [])
-        .map(shoe => ({ ...shoe, fitScore: scoreShoe(shoe, profileData) }))
-        .sort((a, b) => b.fitScore - a.fitScore)
+        .map(shoe => ({ ...shoe, fitScore: null }))
 
       setShoes(scored)
       setLoading(false)
@@ -186,9 +144,16 @@ export default function Recommendations() {
       const response = await fetch('/api/shoe-reasoning', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shoe, userProfile: profile, score: shoe.fitScore }),
+        body: JSON.stringify({ shoe, userProfile: profile }),
       })
       const data = await response.json()
+      // Update the shoe's fitScore with the AI-assigned score
+      if (data.score != null) {
+        setShoes(prev =>
+          [...prev.map(s => s.id === id ? { ...s, fitScore: data.score } : s)]
+            .sort((a, b) => (b.fitScore ?? -1) - (a.fitScore ?? -1))
+        )
+      }
       setReasonings(prev => ({
         ...prev,
         [id]: data.reasoning || 'Unable to load reasoning right now.'
@@ -252,7 +217,7 @@ export default function Recommendations() {
                 {/* Rank badge + image */}
                 <div className="relative">
                   {/* Rank badge */}
-                  {index < 3 && (
+                  {shoe.fitScore != null && index < 3 && (
                     <div className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white
                       ${index === 0 ? 'bg-yellow-400' : index === 1 ? 'bg-gray-400' : 'bg-amber-600'}`}>
                       {index + 1}
@@ -271,8 +236,8 @@ export default function Recommendations() {
                   <div className="flex items-start gap-3 mb-2">
                     <ScoreRing score={shoe.fitScore} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium" style={{ color: scoreColor(shoe.fitScore) }}>
-                        {scoreLabel(shoe.fitScore)}
+                      <p className="text-xs font-medium" style={{ color: shoe.fitScore != null ? scoreColor(shoe.fitScore) : '#9ca3af' }}>
+                        {shoe.fitScore != null ? scoreLabel(shoe.fitScore) : 'Click to score'}
                       </p>
                       <p className="text-sm text-gray-400 truncate">{shoe.model_line}</p>
                       <h2 className="text-base font-semibold leading-tight">{shoe.name}</h2>
