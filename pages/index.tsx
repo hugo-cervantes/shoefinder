@@ -107,13 +107,23 @@ export default function Home() {
         .gte('created_at', oneWeekAgo);
 
       if (!wishlistData || wishlistData.length === 0) {
-        // Fallback: just show newest shoes if no wishlist data
-        const { data: newest } = await supabase
+        // Fallback: seeded shuffle so same shoes show all week
+        const { data: all } = await supabase
           .from('shoe')
           .select('id, name, model_line, price, image_url')
-          .order('id', { ascending: false })
-          .limit(6);
-        setTrending((newest || []).map(s => ({ ...s, wishlist_count: 0 })));
+          .limit(50);
+        if (all) {
+          const weekSeed = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000))
+          const seededRandom = (i: number) => {
+            const x = Math.sin(weekSeed + i) * 10000
+            return x - Math.floor(x)
+          }
+          const shuffled = all
+            .map((s, i) => ({ s, sort: seededRandom(i) }))
+            .sort((a, b) => a.sort - b.sort)
+            .map(x => x.s)
+          setTrending(shuffled.slice(0, 6).map(s => ({ ...s, wishlist_count: 0 })));
+        }
         return;
       }
 
@@ -152,8 +162,16 @@ export default function Home() {
             .limit(50);
 
           if (extras) {
-            // Shuffle and pick enough to fill
-            const shuffled = extras.sort(() => Math.random() - 0.5);
+            // Seed shuffle with current week number so same shoes show all week
+            const weekSeed = Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000))
+            const seededRandom = (i: number) => {
+              const x = Math.sin(weekSeed + i) * 10000
+              return x - Math.floor(x)
+            }
+            const shuffled = extras
+              .map((s, i) => ({ s, sort: seededRandom(i) }))
+              .sort((a, b) => a.sort - b.sort)
+              .map(x => x.s)
             const needed = 6 - sorted.length;
             const padding = shuffled.slice(0, needed).map(s => ({ ...s, wishlist_count: 0 }));
             setTrending([...sorted, ...padding]);
