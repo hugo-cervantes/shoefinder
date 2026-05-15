@@ -10,36 +10,36 @@ const CATEGORY_MAP: Record<number, string> = {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { shoe, userProfile, score } = req.body
-
+  const { shoe, userProfile } = req.body
   if (!shoe || !userProfile) return res.status(400).json({ error: 'Missing data' })
 
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return res.status(500).json({ error: 'API key not configured' })
 
-  const categoryLabel = CATEGORY_MAP[shoe.category_id] ?? 'General'
-  const userCategories = (userProfile.category_ids?.length
-    ? userProfile.category_ids.map((id: number) => CATEGORY_MAP[id]).filter(Boolean)
-    : [CATEGORY_MAP[userProfile.category_id]]
+  const categoryLabel  = CATEGORY_MAP[shoe.category_id] ?? 'General'
+  const userCategories = (
+    userProfile.category_ids?.length
+      ? userProfile.category_ids.map((id: number) => CATEGORY_MAP[id]).filter(Boolean)
+      : [CATEGORY_MAP[userProfile.category_id]]
   ).join(', ')
 
   const userWidths = userProfile.shoe_widths?.length
     ? userProfile.shoe_widths.join(', ')
     : userProfile.shoe_width
 
-  const brandSizeInfo = userProfile.brand_sizes
+  const brandSizeInfo = userProfile.brand_sizes && Object.keys(userProfile.brand_sizes).length > 0
     ? Object.entries(userProfile.brand_sizes).map(([b, s]) => `${b}: size ${s}`).join(', ')
     : 'not provided'
 
-  const prompt = `You are SoleMate's AI shoe expert. A user has been matched with a shoe and scored ${score}/100 for fit compatibility.
+  const prompt = `You are SoleMate's AI shoe expert. Score this shoe's fit for this specific user from 0 to 100, then explain why.
 
 USER PROFILE:
 - Gender: ${userProfile.gender}
 - Preferred width(s): ${userWidths}
-- Activity/use: ${userCategories}
+- Activities: ${userCategories}
 - Brand sizes: ${brandSizeInfo}
 
-MATCHED SHOE:
+SHOE:
 - Name: ${shoe.name}
 - Model line: ${shoe.model_line}
 - Price: $${shoe.price}
@@ -47,9 +47,18 @@ MATCHED SHOE:
 - Width: ${shoe.width}
 - Category: ${categoryLabel}
 
-FIT SCORE: ${score}/100
+SCORING INSTRUCTIONS:
+Score this shoe 0-100 based on how well it fits this user. Use your real knowledge of this specific shoe model to inform the score. Consider:
+- How true-to-size does this shoe run? Does it match the user's width needs?
+- How well does this shoe's actual design and features serve the user's stated activities?
+- Cushioning, support, durability, and comfort relative to their use case
+- Gender fit accuracy
+- Any known quirks of this model (runs narrow, needs break-in, etc.)
 
-Write a concise 2-3 sentence explanation of why this shoe scored ${score}/100 for this user. Reference the shoe's real features and connect them to the user's specific needs. If the score is high (85+), be enthusiastic. If mid-range (60-84), acknowledge what works and what's a compromise. If lower (<60), be honest about why it's not a perfect match. Sound like a knowledgeable friend. Do not use bullet points. Do not start with "This shoe".`
+Be precise and differentiated — avoid clustering scores. A perfect match might be 91, a good match 74, a partial match 58, a poor match 31. Use the full range.
+
+Respond ONLY with valid JSON in this exact format, no other text:
+{"score": <number 0-100>, "reasoning": "<2-3 sentences explaining the score, referencing real features of this specific shoe>"}`
 
   try {
     const response = await fetch(GROQ_API_URL, {
@@ -61,20 +70,44 @@ Write a concise 2-3 sentence explanation of why this shoe scored ${score}/100 fo
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 160,
-        temperature: 0.7,
+        max_tokens: 200,
+        temperature: 0.8,  // slightly higher = more varied scores
       }),
     })
 
     if (!response.ok) {
-      const err = await response.text()
-      console.error('Groq error:', err)
+      console.error('Groq error:', await response.text())
       return res.status(500).json({ error: 'AI service error' })
     }
 
     const data = await response.json()
-    const reasoning = data.choices?.[0]?.message?.content?.trim() ?? ''
-    return res.status(200).json({ reasoning })
+    const raw = data.choices?.[0]?.message?.content?.trim() ?? ''
+
+    // Parse the JSON response
+    let parsed: { score: number; reasoning: string }
+    try {
+      // Strip any markdown code fences if present
+      const clean = raw.replace(/```json|```/g, '').trim()
+      parsed = JSON.parse(clean)
+    } catch {
+      // Fallback: try to extract score with regex if JSON parse fails
+      const scoreMatch = raw.match(/"score"\s*:\s*(\d+)/)
+      const reasonMatch = raw.match(/"reasoning"\s*:\s*"([^"]+)"/)
+      if (scoreMatch && reasonMatch) {
+        parsed = {
+          score: Math.min(100, Math.max(0, Number(scoreMatch[1]))),
+          reasoning: reasonMatch[1],
+        }
+      } else {
+        console.error('Failed to parse AI response:', raw)
+        return res.status(500).json({ error: 'Failed to parse AI response' })
+      }
+    }
+
+    // Clamp score to 0-100
+    const score = Math.min(100, Math.max(0, Math.round(parsed.score)))
+
+    return res.status(200).json({ score, reasoning: parsed.reasoning })
 
   } catch (err) {
     console.error('Reasoning error:', err)
