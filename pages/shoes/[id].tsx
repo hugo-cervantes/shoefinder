@@ -13,12 +13,20 @@ interface Shoe {
   image_url: string;
   gender: string;
   external_url: string;
+  category_id: number;
+  width: string;
 }
 
 interface Review {
   id: string;
   rating: number;
   review_text: string;
+  helpful_count: number;
+  not_helpful_count: number;
+}
+
+const CATEGORY_MAP: Record<number, string> = {
+  1: "Running", 2: "Casual", 3: "Sports", 4: "Hiking",
 }
 
 export default function ShoePage() {
@@ -42,9 +50,16 @@ export default function ShoePage() {
   const [heartHovered, setHeartHovered]     = useState(false);
 
   // Brand size
-  const [brandSizes, setBrandSizes]         = useState<BrandSizes | null>(null);
-  const [detectedBrand, setDetectedBrand]   = useState<BrandKey | null>(null);
+  const [brandSizes, setBrandSizes]             = useState<BrandSizes | null>(null);
+  const [detectedBrand, setDetectedBrand]       = useState<BrandKey | null>(null);
   const [userSizeForBrand, setUserSizeForBrand] = useState<number | null>(null);
+
+  // You might also like
+  const [similarShoes, setSimilarShoes] = useState<Shoe[]>([]);
+
+  // Review votes — track which reviews this user has voted on
+  const [userVotes, setUserVotes] = useState<Record<string, boolean>>({});
+  const [votingId, setVotingId]   = useState<string | null>(null);
 
   // ── Fetch shoe ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -63,17 +78,33 @@ export default function ShoePage() {
     fetchShoe();
   }, [router.isReady, id]);
 
-  // ── Fetch reviews ─────────────────────────────────────────────────────
-  useEffect(() => {
+  // ── Fetch reviews (sorted by helpfulness) ────────────────────────────
+  const fetchReviews = async () => {
     if (!router.isReady || !id) return;
     const numericId = Number(id);
-    if (isNaN(numericId)) return;
-    supabase.from("review").select("*").eq("shoe_id", numericId)
-      .order("created_at", { ascending: false })
-      .then(({ data }) => setReviews(data || []));
-  }, [router.isReady, id]);
+    const { data } = await supabase
+      .from("review")
+      .select("*")
+      .eq("shoe_id", numericId)
+      .order("helpful_count", { ascending: false });
+    setReviews(data || []);
+  };
 
-  // ── Check wishlist + load brand sizes ─────────────────────────────────
+  useEffect(() => { fetchReviews(); }, [router.isReady, id]);
+
+  // ── Fetch similar shoes ───────────────────────────────────────────────
+  useEffect(() => {
+    if (!shoe) return;
+    supabase
+      .from("shoe")
+      .select("*")
+      .eq("category_id", shoe.category_id)
+      .neq("id", shoe.id)
+      .limit(4)
+      .then(({ data }) => setSimilarShoes(data || []));
+  }, [shoe]);
+
+  // ── Check wishlist + load user data ───────────────────────────────────
   useEffect(() => {
     if (!router.isReady || !id) return;
     const numericId = Number(id);
@@ -83,35 +114,37 @@ export default function ShoePage() {
       if (!user) return;
       setUserId(user.id);
 
-      // Check wishlist
       const { data: wl } = await supabase
         .from("wishlist").select("id")
         .eq("user_id", user.id).eq("shoe_id", numericId).maybeSingle();
       if (wl) { setIsSaved(true); setWishlistId(wl.id); }
 
-      // Load brand sizes from user_profile
       const { data: profile } = await supabase
-        .from("user_profile").select("brand_sizes")
-        .eq("id", user.id).single();
+        .from("user_profile").select("brand_sizes").eq("id", user.id).single();
+      if (profile?.brand_sizes) setBrandSizes(profile.brand_sizes);
 
-      if (profile?.brand_sizes) {
-        setBrandSizes(profile.brand_sizes);
+      // Load this user's votes on these reviews
+      const { data: votes } = await supabase
+        .from("review_votes")
+        .select("review_id, vote")
+        .eq("user_id", user.id);
+      if (votes) {
+        const voteMap: Record<string, boolean> = {};
+        votes.forEach(v => { voteMap[v.review_id] = v.vote; });
+        setUserVotes(voteMap);
       }
     };
     loadUserData();
   }, [router.isReady, id]);
 
-  // ── Build size info once we have shoe + brand sizes ──────────────────
+  // ── Brand size detection ──────────────────────────────────────────────
   useEffect(() => {
     if (!shoe?.external_url || !brandSizes) return;
-
     const brand = detectBrand(shoe.external_url);
     setDetectedBrand(brand);
     if (!brand) return;
-
     const conversions = getAllConversions(brandSizes);
     if (!conversions) return;
-
     setUserSizeForBrand(conversions[brand]);
   }, [shoe, brandSizes]);
 
@@ -119,7 +152,6 @@ export default function ShoePage() {
   const toggleWishlist = async () => {
     if (!userId) { router.push("/login"); return; }
     setWishlistLoading(true);
-
     if (isSaved && wishlistId) {
       const { error } = await supabase.from("wishlist").delete().eq("id", wishlistId);
       if (!error) { setIsSaved(false); setWishlistId(null); window.dispatchEvent(new Event("wishlist-updated")); }
@@ -131,22 +163,62 @@ export default function ShoePage() {
     setWishlistLoading(false);
   };
 
+  // ── Vote on review ────────────────────────────────────────────────────
+  const handleVote = async (reviewId: string, vote: boolean) => {
+    if (!userId) { router.push("/login"); return; }
+    if (votingId) return;
+    setVotingId(reviewId);
+
+    const existing = userVotes[reviewId];
+
+    if (existing === vote) {
+      // Un-vote
+      await supabase.from("review_votes")
+        .delete().eq("review_id", reviewId).eq("user_id", userId);
+      await supabase.from("review")
+        .update({ [vote ? "helpful_count" : "not_helpful_count"]: reviews.find(r => r.id === reviewId)![vote ? "helpful_count" : "not_helpful_count"] - 1 })
+        .eq("id", reviewId);
+      setUserVotes(prev => { const n = { ...prev }; delete n[reviewId]; return n; });
+    } else {
+      if (existing !== undefined) {
+        // Switch vote — remove old
+        await supabase.from("review_votes")
+          .delete().eq("review_id", reviewId).eq("user_id", userId);
+        const r = reviews.find(r => r.id === reviewId)!;
+        await supabase.from("review").update({
+          helpful_count: existing ? r.helpful_count - 1 : r.helpful_count + 1,
+          not_helpful_count: existing ? r.not_helpful_count + 1 : r.not_helpful_count - 1,
+        }).eq("id", reviewId);
+      } else {
+        // New vote
+        await supabase.from("review_votes")
+          .insert({ review_id: reviewId, user_id: userId, vote });
+        const r = reviews.find(r => r.id === reviewId)!;
+        await supabase.from("review").update({
+          [vote ? "helpful_count" : "not_helpful_count"]: (vote ? r.helpful_count : r.not_helpful_count) + 1,
+        }).eq("id", reviewId);
+      }
+      setUserVotes(prev => ({ ...prev, [reviewId]: vote }));
+    }
+
+    await fetchReviews();
+    setVotingId(null);
+  };
+
   // ── Submit review ─────────────────────────────────────────────────────
   async function submitReview() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) { alert("You must be logged in to leave a review."); return; }
     if (rating === 0)   { alert("Please select a star rating."); return; }
     if (!reviewText.trim()) { alert("Please write a review before submitting."); return; }
-
     setSubmitting(true);
     const { error } = await supabase.from("review").insert({
-      shoe_id: Number(id), user_id: userData.user.id, rating, review_text: reviewText.trim(),
+      shoe_id: Number(id), user_id: userData.user.id, rating,
+      review_text: reviewText.trim(), helpful_count: 0, not_helpful_count: 0,
     });
     if (error) { alert("Something went wrong."); setSubmitting(false); return; }
     setReviewText(""); setRating(0); setSubmitting(false);
-    const { data } = await supabase.from("review").select("*")
-      .eq("shoe_id", Number(id)).order("created_at", { ascending: false });
-    setReviews(data || []);
+    fetchReviews();
   }
 
   if (loading) return (
@@ -167,15 +239,11 @@ export default function ShoePage() {
   const averageRating = reviews.length > 0
     ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
     : null;
-
-  const brandLabel = detectedBrand
-    ? BRANDS.find(b => b.key === detectedBrand)?.label
-    : null;
+  const brandLabel = detectedBrand ? BRANDS.find(b => b.key === detectedBrand)?.label : null;
 
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
-
       <div className="px-6 py-10 max-w-5xl mx-auto">
         <Link href="/catalog" className="text-sm text-gray-500 hover:text-black transition">
           ← Back to catalog
@@ -191,19 +259,15 @@ export default function ShoePage() {
           <div>
             <div className="flex items-start justify-between gap-4">
               <h1 className="text-3xl font-bold">{shoe.name}</h1>
-
-              {/* Heart button */}
               <div className="relative shrink-0 mt-1">
-                <button
-                  onClick={toggleWishlist}
+                <button onClick={toggleWishlist}
                   onMouseEnter={() => setHeartHovered(true)}
                   onMouseLeave={() => setHeartHovered(false)}
                   disabled={wishlistLoading}
                   className={`w-11 h-11 flex items-center justify-center rounded-full border-2 transition
                     ${isSaved ? "bg-red-50 border-red-300 hover:bg-red-100" : "bg-white border-gray-200 hover:border-red-300 hover:bg-red-50"}
-                    disabled:opacity-40`}
-                >
-                  <svg className={`w-5 h-5 transition-colors ${isSaved ? "text-red-500" : "text-gray-300"}`}
+                    disabled:opacity-40`}>
+                  <svg className={`w-5 h-5 ${isSaved ? "text-red-500" : "text-gray-300"}`}
                     fill={isSaved ? "currentColor" : "none"} stroke={isSaved ? "none" : "currentColor"}
                     strokeWidth={2} viewBox="0 0 24 24">
                     <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
@@ -242,38 +306,21 @@ export default function ShoePage() {
 
             {shoe.external_url && (
               <div className="mt-6">
-                <a
-                  href={shoe.external_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition"
-                >
+                <a href={shoe.external_url} target="_blank" rel="noopener noreferrer"
+                  className="inline-block bg-black text-white px-6 py-3 rounded hover:bg-gray-800 transition">
                   View on {brandLabel ?? "Brand"} Site
                 </a>
-
-                {/* Show user's size for this brand */}
                 {userSizeForBrand && brandLabel && (
-                  <div className="mt-3 flex items-center gap-2 bg-gray-50 border border-gray-200
-                                  rounded-lg px-4 py-2.5 w-fit">
-                    <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor"
-                      strokeWidth={2} viewBox="0 0 24 24">
-                      <path d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z"
-                        strokeLinecap="round" strokeLinejoin="round" />
+                  <div className="mt-3 flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 w-fit">
+                    <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 11h.01M12 11h.01M15 11h.01M4 19h16a2 2 0 002-2V7a2 2 0 00-2-2H4a2 2 0 00-2 2v10a2 2 0 002 2z" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
-                    <span className="text-sm text-gray-600">
-                      Your {brandLabel} size:{" "}
-                      <span className="font-bold text-gray-900">{userSizeForBrand}</span>
-                    </span>
+                    <span className="text-sm text-gray-600">Your {brandLabel} size: <span className="font-bold text-gray-900">{userSizeForBrand}</span></span>
                   </div>
                 )}
-
-                {/* Prompt to set brand sizes if not set */}
                 {!userSizeForBrand && detectedBrand && (
                   <p className="mt-2 text-xs text-gray-400">
-                    <Link href="/settings" className="underline hover:text-black transition">
-                      Add your {brandLabel} size in settings
-                    </Link>{" "}
-                    to see your size here
+                    <Link href="/settings" className="underline hover:text-black transition">Add your {brandLabel} size in settings</Link> to see your size here
                   </p>
                 )}
               </div>
@@ -281,13 +328,38 @@ export default function ShoePage() {
           </div>
         </div>
 
-        {/* Reviews */}
-        <div className="mt-12 border-t pt-8">
+        {/* ── You might also like ── */}
+        {similarShoes.length > 0 && (
+          <div className="mt-14">
+            <h2 className="text-xl font-semibold mb-5">You Might Also Like</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+              {similarShoes.map(s => (
+                <Link key={s.id} href={`/shoes/${s.id}`}
+                  className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition overflow-hidden">
+                  <div className="aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+                    <img src={s.image_url} alt={s.name}
+                      className="w-full h-full object-contain p-4 group-hover:scale-105 transition duration-300" />
+                  </div>
+                  <div className="p-3">
+                    <p className="font-medium text-sm text-gray-900 truncate">{s.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{s.model_line}</p>
+                    <p className="font-bold text-sm mt-1">${s.price}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Reviews ── */}
+        <div className="mt-14 border-t pt-8">
           <h2 className="text-xl font-semibold mb-6">Reviews</h2>
+
+          {/* Submit form */}
           <div className="mb-8 bg-gray-50 rounded-xl p-5">
             <p className="text-sm font-medium mb-3">Leave a review</p>
             <div className="flex gap-1 mb-3">
-              {[1, 2, 3, 4, 5].map(star => (
+              {[1,2,3,4,5].map(star => (
                 <button key={star} onClick={() => setRating(star)} type="button" className="text-2xl">
                   <span className={star <= rating ? "text-yellow-400" : "text-gray-300"}>★</span>
                 </button>
@@ -301,14 +373,41 @@ export default function ShoePage() {
               {submitting ? "Submitting..." : "Submit Review"}
             </button>
           </div>
-          <div className="space-y-4">
+
+          {/* Review list */}
+          <div className="space-y-5">
             {reviews.length === 0 && <p className="text-gray-400 text-sm">No reviews yet — be the first!</p>}
             {reviews.map(r => (
-              <div key={r.id} className="border-b border-gray-100 pb-4">
+              <div key={r.id} className="border-b border-gray-100 pb-5">
                 <p className="text-yellow-400 text-sm">
                   {"★".repeat(r.rating)}<span className="text-gray-300">{"★".repeat(5 - r.rating)}</span>
                 </p>
-                <p className="text-gray-700 text-sm mt-1">{r.review_text}</p>
+                <p className="text-gray-700 text-sm mt-1 mb-3">{r.review_text}</p>
+
+                {/* Helpfulness voting */}
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-400">Helpful?</span>
+                  <button
+                    onClick={() => handleVote(r.id, true)}
+                    disabled={votingId === r.id}
+                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition
+                      ${userVotes[r.id] === true
+                        ? "bg-green-50 border-green-300 text-green-600"
+                        : "bg-white border-gray-200 text-gray-500 hover:border-green-300 hover:text-green-600"
+                      } disabled:opacity-40`}>
+                    👍 <span>{r.helpful_count}</span>
+                  </button>
+                  <button
+                    onClick={() => handleVote(r.id, false)}
+                    disabled={votingId === r.id}
+                    className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition
+                      ${userVotes[r.id] === false
+                        ? "bg-red-50 border-red-300 text-red-500"
+                        : "bg-white border-gray-200 text-gray-500 hover:border-red-300 hover:text-red-500"
+                      } disabled:opacity-40`}>
+                    👎 <span>{r.not_helpful_count}</span>
+                  </button>
+                </div>
               </div>
             ))}
           </div>
