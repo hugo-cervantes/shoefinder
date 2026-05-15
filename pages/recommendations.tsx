@@ -119,9 +119,21 @@ export default function Recommendations() {
 
       if (shoeError) { console.error(shoeError); setLoading(false); return }
 
-      // fitScore starts null — AI will fill it in when user clicks
+      // Load any cached scores from Supabase for this user
+      const shoeIds = (shoeData || []).map((s: any) => s.id)
+      const { data: cachedScores } = await supabase
+        .from("shoe_scores")
+        .select("shoe_id, score")
+        .eq("user_id", user.id)
+        .in("shoe_id", shoeIds)
+
+      const scoreMap: Record<number, number> = {}
+      ;(cachedScores || []).forEach((s: any) => { scoreMap[s.shoe_id] = s.score })
+
+      // Apply cached scores — null means not yet scored
       const scored: ScoredShoe[] = (shoeData || [])
-        .map(shoe => ({ ...shoe, fitScore: null }))
+        .map((shoe: any) => ({ ...shoe, fitScore: scoreMap[shoe.id] ?? null }))
+        .sort((a: ScoredShoe, b: ScoredShoe) => (b.fitScore ?? -1) - (a.fitScore ?? -1))
 
       setShoes(scored)
       setLoading(false)
@@ -156,12 +168,21 @@ export default function Recommendations() {
         body: JSON.stringify({ shoe, userProfile: profile, mode: 'score' }),
       })
         .then(r => r.json())
-        .then(data => {
+        .then(async data => {
           if (data.score != null) {
             setShoes(prev =>
               [...prev.map(s => s.id === shoe.id ? { ...s, fitScore: data.score } : s)]
                 .sort((a, b) => (b.fitScore ?? -1) - (a.fitScore ?? -1))
             )
+            // Cache score in Supabase so it persists across refreshes
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+              await supabase.from("shoe_scores").upsert({
+                shoe_id: shoe.id,
+                user_id: user.id,
+                score: data.score,
+              }, { onConflict: "shoe_id,user_id" })
+            }
           }
         })
         .catch(err => console.error('Score fetch error:', err))
@@ -191,6 +212,21 @@ export default function Recommendations() {
         body: JSON.stringify({ shoe, userProfile: profile, mode: 'full' }),
       })
       const data = await response.json()
+      // Update score from full mode response + cache it
+      if (data.score != null) {
+        setShoes(prev =>
+          [...prev.map(s => s.id === id ? { ...s, fitScore: data.score } : s)]
+            .sort((a, b) => (b.fitScore ?? -1) - (a.fitScore ?? -1))
+        )
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          await supabase.from("shoe_scores").upsert({
+            shoe_id: id,
+            user_id: user.id,
+            score: data.score,
+          }, { onConflict: "shoe_id,user_id" })
+        }
+      }
       setReasonings(prev => ({
         ...prev,
         [id]: data.reasoning || 'Unable to load reasoning right now.'
