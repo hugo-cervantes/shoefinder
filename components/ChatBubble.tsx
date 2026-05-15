@@ -217,33 +217,34 @@ export default function ChatBubble() {
                     </div>
                   )}
 
-                  {/* External shoe cards */}
+                  {/* External shoe cards - same style as catalog, links to Google search */}
                   {msg.externalShoes && msg.externalShoes.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-xs text-gray-400 px-1">Not on SoleMate yet - worth checking out:</p>
+                      <p className="text-xs text-gray-400 px-1">Not on SoleMate yet:</p>
                       {msg.externalShoes.map((shoe, idx) => (
                         <a key={idx} href={shoe.url} target="_blank" rel="noopener noreferrer"
-                          className="flex items-start gap-3 bg-blue-50 border border-blue-100
-                                     rounded-xl p-2.5 hover:border-blue-400 hover:shadow-sm
+                          className="flex items-center gap-3 bg-white border border-gray-200
+                                     rounded-xl p-2.5 hover:border-black hover:shadow-sm
                                      transition cursor-pointer group">
-                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
-                            <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                              <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" strokeLinecap="round" strokeLinejoin="round"/>
+                          {/* Shoe icon placeholder since no image */}
+                          <div className="w-14 h-14 bg-gray-100 rounded-lg flex items-center justify-center shrink-0">
+                            <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+                              <path d="M3 10h1l2-3h10l2 3h1a1 1 0 011 1v4a1 1 0 01-1 1H3a1 1 0 01-1-1v-4a1 1 0 011-1z" strokeLinecap="round" strokeLinejoin="round"/>
+                              <circle cx="7" cy="15" r="1.5" fill="currentColor" stroke="none"/>
+                              <circle cx="17" cy="15" r="1.5" fill="currentColor" stroke="none"/>
                             </svg>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-sm font-semibold text-gray-900 truncate">{shoe.name}</p>
-                              <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full shrink-0">{shoe.brand}</span>
-                            </div>
-                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{shoe.reason}</p>
-                            <div className="flex items-center justify-between mt-1">
-                              <p className="text-xs font-bold text-gray-700">{shoe.price_range}</p>
-                              <p className="text-xs text-blue-600 font-medium group-hover:underline">
-                                Find on Google Shopping
-                              </p>
-                            </div>
+                            <p className="text-xs text-gray-400 truncate">{shoe.brand}</p>
+                            <p className="text-sm font-semibold text-gray-900 truncate">{shoe.name}</p>
+                            <p className="text-xs text-gray-500 mt-0.5 truncate">{shoe.price_range}</p>
+                            <p className="text-xs text-black font-medium mt-0.5 group-hover:underline">
+                              Search on Google
+                            </p>
                           </div>
+                          <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
                         </a>
                       ))}
                     </div>
