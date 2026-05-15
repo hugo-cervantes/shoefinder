@@ -356,8 +356,8 @@ export default function CatalogPage() {
       {/* Sticky compare bar */}
       {compareIds.length > 0 && (
         <div className="fixed bottom-6 left-6 z-40 bg-white border border-gray-200 rounded-2xl shadow-2xl
-                        px-4 py-3 flex items-center gap-3 max-w-xs">
-          <div className="flex items-center gap-2 min-w-0">
+                        px-5 py-4 flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <p className="text-sm font-semibold text-gray-700 shrink-0">
               Comparing {compareIds.length}/3
             </p>
@@ -401,7 +401,7 @@ export default function CatalogPage() {
                   ? 'bg-black text-white hover:bg-gray-800'
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 }`}>
-              {compareIds.length >= 2 ? 'Compare Now' : `Need ${2 - compareIds.length} more`}
+              {compareIds.length >= 2 ? 'Compare Now' : `Compare Now (need ${2 - compareIds.length} more)`}
             </Link>
           </div>
         </div>
