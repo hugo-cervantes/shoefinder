@@ -1,6 +1,5 @@
 'use client'
-import React from 'react'
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 
@@ -30,24 +29,18 @@ interface ExternalShoe {
   price_range: string
 }
 
-// -- Input sanitization ---------------------------------------------------
-const MAX_INPUT_LENGTH = 500
+const MAX_INPUT = 500
 
 function sanitizeInput(value: string): string {
   return value
     .replace(/<[^>]*>/g, '')
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-    .slice(0, MAX_INPUT_LENGTH)
+    .slice(0, MAX_INPUT)
 }
 
-
-// Simple markdown renderer - bold only
 function renderText(text: string): React.ReactNode {
   const parts = text.split(/\*\*([^*]+)\*\*/)
   return parts.map((part, i) =>
-    i % 2 === 1
-      ? <strong key={i}>{part}</strong>
-      : part
+    i % 2 === 1 ? <strong key={i}>{part}</strong> : part
   )
 }
 
@@ -62,11 +55,9 @@ export default function ChatBubble() {
   const [messages, setMessages] = useState<Message[]>([WELCOME])
   const [input, setInput]       = useState('')
   const [loading, setLoading]   = useState(false)
-  const [nudge, setNudge]       = useState(false)   // little bounce nudge
+  const [nudge, setNudge]       = useState(false)
   const bottomRef               = useRef<HTMLDivElement>(null)
-  const inputRef                = useRef<HTMLTextAreaElement>(null)
 
-  // -- Auth check --------------------------------------------------------
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null))
     const { data } = supabase.auth.onAuthStateChange((_e, session) => {
@@ -75,25 +66,21 @@ export default function ChatBubble() {
     return () => data.subscription.unsubscribe()
   }, [])
 
-  // -- Nudge animation after 8 seconds ----------------------------------
   useEffect(() => {
     if (!user) return
     const t = setTimeout(() => setNudge(true), 8000)
     return () => clearTimeout(t)
   }, [user])
 
-  // -- Scroll to bottom on new message ----------------------------------
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
-  // Don't render for logged-out users
   if (!user) return null
 
   const sendMessage = async () => {
     const text = input.trim()
-    if (!text || loading) return
-    if (text.length > MAX_INPUT_LENGTH) return  // shouldn't happen but belt-and-suspenders
+    if (!text || loading || text.length > MAX_INPUT) return
 
     const userMsg: Message = { role: 'user', content: text }
     const newMessages = [...messages, userMsg]
@@ -101,10 +88,7 @@ export default function ChatBubble() {
     setInput('')
     setLoading(true)
 
-    // Only send role+content to API (not the extra fields)
-    const apiMessages = newMessages
-      .filter(m => m.role === 'user' || m.role === 'assistant')
-      .map(m => ({ role: m.role, content: m.content }))
+    const apiMessages = newMessages.map(m => ({ role: m.role, content: m.content }))
 
     try {
       const res = await fetch('/api/chat', {
@@ -113,14 +97,12 @@ export default function ChatBubble() {
         body: JSON.stringify({ messages: apiMessages, userId: user.id }),
       })
       const data = await res.json()
-
-      const assistantMsg: Message = {
+      setMessages(prev => [...prev, {
         role: 'assistant',
         content: data.message ?? 'Sorry, something went wrong.',
         catalogMatches: data.catalogMatches ?? [],
         externalShoes: data.externalShoes ?? [],
-      }
-      setMessages(prev => [...prev, assistantMsg])
+      }])
     } catch {
       setMessages(prev => [...prev, {
         role: 'assistant',
@@ -132,36 +114,24 @@ export default function ChatBubble() {
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      sendMessage()
-    }
-  }
-
-  const clearChat = () => {
-    setMessages([WELCOME])
-    setInput('')
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
   return (
     <>
-      {/* -- Floating bubble button -- */}
+      {/* Floating button */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
-
-        {/* Tooltip nudge */}
         {nudge && !open && (
           <div className="bg-gray-900 text-white text-xs px-3 py-2 rounded-xl shadow-lg
-                          animate-bounce max-w-[160px] text-center">
+                          animate-bounce max-w-[160px] text-center relative">
             Need help finding a shoe?
             <div className="absolute -bottom-1 right-5 w-2 h-2 bg-gray-900 rotate-45" />
           </div>
         )}
-
         <button
           onClick={() => { setOpen(o => !o); setNudge(false) }}
-          className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center
-                      transition-all duration-300 hover:scale-110
-                      ${open ? 'bg-gray-800 rotate-0' : 'bg-black'}`}
+          className="w-14 h-14 rounded-full shadow-xl flex items-center justify-center
+                     bg-black hover:scale-110 transition-all duration-300"
           aria-label="Open AI chat"
         >
           {open ? (
@@ -177,11 +147,10 @@ export default function ChatBubble() {
         </button>
       </div>
 
-      {/* -- Chat window -- */}
+      {/* Chat window */}
       {open && (
         <div className="fixed bottom-24 right-6 z-50 w-[380px] max-w-[calc(100vw-3rem)]
-                        bg-white rounded-2xl shadow-2xl border border-gray-200
-                        flex flex-col overflow-hidden"
+                        bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden"
              style={{ height: '520px' }}>
 
           {/* Header */}
@@ -197,7 +166,7 @@ export default function ChatBubble() {
                 <p className="text-xs text-white/60 mt-0.5">Shoe expert</p>
               </div>
             </div>
-            <button onClick={clearChat}
+            <button onClick={() => { setMessages([WELCOME]); setInput('') }}
               className="text-white/50 hover:text-white text-xs transition">
               Clear
             </button>
@@ -207,8 +176,9 @@ export default function ChatBubble() {
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                <div className={`max-w-[85%] space-y-2`}>
-                  {/* Message bubble */}
+                <div className="max-w-[85%] space-y-2">
+
+                  {/* Bubble */}
                   <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed
                     ${msg.role === 'user'
                       ? 'bg-black text-white rounded-br-sm'
@@ -247,10 +217,10 @@ export default function ChatBubble() {
                     </div>
                   )}
 
-                  {/* External shoe suggestions */}
+                  {/* External shoe cards */}
                   {msg.externalShoes && msg.externalShoes.length > 0 && (
                     <div className="space-y-2">
-                      <p className="text-xs text-gray-400 px-1">Not on SoleMate yet -- worth checking out:</p>
+                      <p className="text-xs text-gray-400 px-1">Not on SoleMate yet - worth checking out:</p>
                       {msg.externalShoes.map((shoe, idx) => (
                         <a key={idx} href={shoe.url} target="_blank" rel="noopener noreferrer"
                           className="flex items-start gap-3 bg-blue-50 border border-blue-100
@@ -282,7 +252,7 @@ export default function ChatBubble() {
               </div>
             ))}
 
-            {/* Loading indicator */}
+            {/* Loading dots */}
             {loading && (
               <div className="flex justify-start">
                 <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1.5">
@@ -301,14 +271,12 @@ export default function ChatBubble() {
             <div className="flex items-end gap-2 bg-gray-50 rounded-xl border border-gray-200
                             focus-within:border-black focus-within:bg-white transition px-3 py-2">
               <textarea
-                ref={inputRef}
                 value={input}
                 onChange={e => setInput(sanitizeInput(e.target.value))}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask me anything about shoes..."
                 rows={1}
-                className="flex-1 text-sm bg-transparent resize-none focus:outline-none
-                           max-h-24 leading-relaxed"
+                className="flex-1 text-sm bg-transparent resize-none focus:outline-none max-h-24 leading-relaxed"
                 style={{ minHeight: '24px' }}
               />
               <button
@@ -324,11 +292,11 @@ export default function ChatBubble() {
               </button>
             </div>
             <div className="flex items-center justify-between mt-1.5">
-            <p className="text-xs text-gray-300">Enter to send - Shift+Enter for new line</p>
-            <p className={`text-xs ${input.length > 450 ? 'text-red-400' : 'text-gray-300'}`}>
-              {input.length}/{MAX_INPUT_LENGTH}
-            </p>
-          </div>
+              <p className="text-xs text-gray-300">Enter to send - Shift+Enter for new line</p>
+              <p className={`text-xs ${input.length > 450 ? 'text-red-400' : 'text-gray-300'}`}>
+                {input.length}/{MAX_INPUT}
+              </p>
+            </div>
           </div>
         </div>
       )}
