@@ -355,8 +355,8 @@ export default function CatalogPage() {
 
       {/* Sticky compare bar */}
       {compareIds.length > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-2xl
-                        px-6 py-4 flex items-center justify-between gap-4">
+        <div className="fixed bottom-6 left-6 z-40 bg-white border border-gray-200 rounded-2xl shadow-2xl
+                        px-5 py-4 flex items-center justify-between gap-4 max-w-lg">
           <div className="flex items-center gap-3">
             <p className="text-sm font-semibold text-gray-700 shrink-0">
               Comparing {compareIds.length}/3
@@ -407,8 +407,7 @@ export default function CatalogPage() {
         </div>
       )}
 
-      {/* Bottom padding when bar is visible */}
-      {compareIds.length > 0 && <div className="h-24" />}
+
     </div>
   )
 }
