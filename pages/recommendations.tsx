@@ -37,7 +37,7 @@ export default function Recommendations() {
   // AI reasoning state — keyed by shoe id
   const [reasonings, setReasonings]   = useState<Record<number, string>>({})
   const [loadingAI, setLoadingAI]     = useState<Record<number, boolean>>({})
-  const [expandedId, setExpandedId]   = useState<number | null>(null)
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
 
   // ── Load recommendations ──────────────────────────────────────────────
   useEffect(() => {
@@ -81,7 +81,6 @@ export default function Recommendations() {
     if (reasonings[shoe.id] || loadingAI[shoe.id] || !profile) return
 
     setLoadingAI(prev => ({ ...prev, [shoe.id]: true }))
-    setExpandedId(shoe.id)
 
     try {
       const response = await fetch('/api/shoe-reasoning', {
@@ -103,10 +102,13 @@ export default function Recommendations() {
   }
 
   const toggleReasoning = (shoe: Shoe) => {
-    if (expandedId === shoe.id) {
-      setExpandedId(null)
+    if (expandedIds.has(shoe.id)) {
+      // Close it
+      setExpandedIds(prev => { const n = new Set(prev); n.delete(shoe.id); return n })
     } else {
+      // Open it — fetch if not cached yet
       fetchReasoning(shoe)
+      setExpandedIds(prev => new Set(prev).add(shoe.id))
     }
   }
 
@@ -217,14 +219,14 @@ export default function Recommendations() {
                       Why this shoe?
                     </span>
                     <svg
-                      className={`w-3.5 h-3.5 transition-transform ${expandedId === shoe.id ? 'rotate-180' : ''}`}
+                      className={`w-3.5 h-3.5 transition-transform ${expandedIds.has(shoe.id) ? 'rotate-180' : ''}`}
                       fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                       <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </button>
 
                   {/* AI reasoning panel */}
-                  {expandedId === shoe.id && (
+                  {expandedIds.has(shoe.id) && (
                     <div className="mt-2 rounded-lg bg-purple-50 border border-purple-100 px-3 py-3">
                       {loadingAI[shoe.id] ? (
                         <div className="flex items-center gap-2 text-xs text-purple-400">
