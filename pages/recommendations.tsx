@@ -15,7 +15,7 @@ interface Shoe {
 }
 
 interface ScoredShoe extends Shoe {
-  fitScore: number | null;  // null until AI scores it
+  fitScore: number | null;  // 1-10, null until AI ranks
 }
 
 interface UserProfile {
@@ -33,23 +33,23 @@ const CATEGORY_MAP: Record<number, string> = {
 
 // ── Score helpers (AI-driven) ─────────────────────────────────────────────
 function scoreColor(score: number): string {
-  if (score >= 85) return '#22c55e'
-  if (score >= 70) return '#3b82f6'
-  if (score >= 55) return '#f59e0b'
+  if (score >= 9) return '#22c55e'
+  if (score >= 7) return '#3b82f6'
+  if (score >= 5) return '#f59e0b'
   return '#ef4444'
 }
 
 function scoreLabel(score: number): string {
-  if (score >= 85) return 'Excellent fit'
-  if (score >= 70) return 'Great fit'
-  if (score >= 55) return 'Good fit'
+  if (score >= 9) return 'Excellent fit'
+  if (score >= 7) return 'Great fit'
+  if (score >= 5) return 'Good fit'
   return 'Partial fit'
 }
 
 function ScoreRing({ score }: { score: number | null }) {
   const r = 18
   const circ = 2 * Math.PI * r
-  const filled = score != null ? (score / 100) * circ : 0
+  const filled = score != null ? (score / 10) * circ : 0
   const color = score != null ? scoreColor(score) : '#e5e7eb'
 
   return (
@@ -62,7 +62,7 @@ function ScoreRing({ score }: { score: number | null }) {
           strokeLinecap="round" />
       </svg>
       {score != null
-        ? <span className="text-xs font-bold" style={{ color }}>{score}</span>
+        ? <span className="text-xs font-bold" style={{ color }}>{score}<span className="text-gray-300 font-normal">/10</span></span>
         : <span className="text-xs text-gray-300">—</span>
       }
     </div>
@@ -119,7 +119,7 @@ export default function Recommendations() {
 
       if (shoeError) { console.error(shoeError); setLoading(false); return }
 
-      // Load any cached scores from Supabase for this user
+      // Check cache first
       const shoeIds = (shoeData || []).map((s: any) => s.id)
       const { data: cachedScores } = await supabase
         .from("shoe_scores")
@@ -130,13 +130,58 @@ export default function Recommendations() {
       const scoreMap: Record<number, number> = {}
       ;(cachedScores || []).forEach((s: any) => { scoreMap[s.shoe_id] = s.score })
 
-      // Apply cached scores — null means not yet scored
-      const scored: ScoredShoe[] = (shoeData || [])
-        .map((shoe: any) => ({ ...shoe, fitScore: scoreMap[shoe.id] ?? null }))
-        .sort((a: ScoredShoe, b: ScoredShoe) => (b.fitScore ?? -1) - (a.fitScore ?? -1))
+      const hasCachedRankings = Object.keys(scoreMap).length >= Math.min(10, shoeData?.length ?? 0)
+
+      if (hasCachedRankings) {
+        // Use cached — only show shoes that have a cached score (the top 10)
+        const scored: ScoredShoe[] = (shoeData || [])
+          .filter((shoe: any) => scoreMap[shoe.id] != null)
+          .map((shoe: any) => ({ ...shoe, fitScore: scoreMap[shoe.id] }))
+          .sort((a: ScoredShoe, b: ScoredShoe) => (b.fitScore ?? -1) - (a.fitScore ?? -1))
+        setShoes(scored)
+        setLoading(false)
+        return
+      }
+
+      // No cache — send all shoes to AI for ranking
+      setShoes([])  // clear while AI thinks
+      setLoading(true)
+
+      const rankRes = await fetch('/api/shoe-reasoning', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shoes: shoeData,
+          userProfile: profileData,
+          mode: 'rank',
+        }),
+      })
+
+      const rankData = await rankRes.json()
+      const rankings: { id: number; score: number }[] = rankData.rankings ?? []
+
+      if (rankings.length === 0) { setLoading(false); return }
+
+      // Build scored shoe list from AI rankings
+      const shoeMap: Record<number, any> = {}
+      ;(shoeData || []).forEach((s: any) => { shoeMap[s.id] = s })
+
+      const scored: ScoredShoe[] = rankings
+        .filter(r => shoeMap[r.id])
+        .map(r => ({ ...shoeMap[r.id], fitScore: r.score }))
 
       setShoes(scored)
       setLoading(false)
+
+      // Cache all scores
+      const upserts = scored.map(s => ({
+        shoe_id: s.id,
+        user_id: user.id,
+        score: s.fitScore!,
+      }))
+      if (upserts.length > 0) {
+        await supabase.from("shoe_scores").upsert(upserts, { onConflict: "shoe_id,user_id" })
+      }
     }
 
     load()
@@ -155,39 +200,7 @@ export default function Recommendations() {
     }
   }
 
-  // ── Auto-score top 10 shoes on load ──────────────────────────────────
-  useEffect(() => {
-    if (!profile || shoes.length === 0) return
-
-    shoes.slice(0, 10).forEach(shoe => {
-      if (shoe.fitScore !== null) return
-
-      fetch('/api/shoe-reasoning', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shoe, userProfile: profile, mode: 'score' }),
-      })
-        .then(r => r.json())
-        .then(async data => {
-          if (data.score != null) {
-            setShoes(prev =>
-              [...prev.map(s => s.id === shoe.id ? { ...s, fitScore: data.score } : s)]
-                .sort((a, b) => (b.fitScore ?? -1) - (a.fitScore ?? -1))
-            )
-            // Cache score in Supabase so it persists across refreshes
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
-              await supabase.from("shoe_scores").upsert({
-                shoe_id: shoe.id,
-                user_id: user.id,
-                score: data.score,
-              }, { onConflict: "shoe_id,user_id" })
-            }
-          }
-        })
-        .catch(err => console.error('Score fetch error:', err))
-    })
-  }, [shoes.length, profile])
+  // Scores are loaded in the main useEffect via AI ranking or cache
 
   // ── Fetch reasoning only when user clicks ────────────────────────────
   const toggleExpanded = async (shoe: ScoredShoe) => {
@@ -209,24 +222,9 @@ export default function Recommendations() {
       const response = await fetch('/api/shoe-reasoning', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shoe, userProfile: profile, mode: 'full' }),
+        body: JSON.stringify({ shoe, userProfile: profile, score: shoe.fitScore, mode: 'explain' }),
       })
       const data = await response.json()
-      // Update score from full mode response + cache it
-      if (data.score != null) {
-        setShoes(prev =>
-          [...prev.map(s => s.id === id ? { ...s, fitScore: data.score } : s)]
-            .sort((a, b) => (b.fitScore ?? -1) - (a.fitScore ?? -1))
-        )
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          await supabase.from("shoe_scores").upsert({
-            shoe_id: id,
-            user_id: user.id,
-            score: data.score,
-          }, { onConflict: "shoe_id,user_id" })
-        }
-      }
       setReasonings(prev => ({
         ...prev,
         [id]: data.reasoning || 'Unable to load reasoning right now.'
@@ -348,7 +346,7 @@ export default function Recommendations() {
                         <circle cx="20" cy="20" r="14" fill="none" stroke="#f59e0b" strokeWidth="3"
                           strokeDasharray="52 88" strokeLinecap="round"/>
                       </svg>
-                      <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-amber-400">74</span>
+                      <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-amber-400">7<span className="text-slate-500 font-normal text-xs">/10</span></span>
                     </div>
                     <div className="flex-1">
                       <p className="text-xs text-amber-400 font-medium">Great fit</p>
@@ -421,17 +419,7 @@ export default function Recommendations() {
                       {index + 1}
                     </div>
                   )}
-                  {/* Unscored indicator for shoes beyond top 10 */}
-                  {shoe.fitScore === null && index >= 10 && (
-                    <div className="absolute top-2 right-2 z-10 flex items-center gap-1
-                                    bg-slate-800/80 backdrop-blur-sm text-amber-400 text-xs
-                                    px-2 py-0.5 rounded-full border border-amber-400/30">
-                      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01" strokeLinecap="round"/>
-                      </svg>
-                      Click to score
-                    </div>
-                  )}
+
                   <Link href={`/shoes/${shoe.id}`}>
                     <div className="aspect-square bg-gray-100 overflow-hidden">
                       <img src={shoe.image_url} alt={shoe.name}
