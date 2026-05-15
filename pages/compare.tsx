@@ -20,16 +20,20 @@ const CATEGORY_MAP: Record<number, string> = {
   1: "Running", 2: "Casual", 3: "Sports", 4: "Hiking",
 }
 
-// Which stat is better - lower price is better, higher is not applicable
-function isBetter(stat: string, value: any, allValues: any[]): boolean {
-  if (stat === "price") return value === Math.min(...allValues)
-  return false
+function isBetter(value: number, allValues: number[]): boolean {
+  return value === Math.min(...allValues)
 }
 
 export default function ComparePage() {
   const router = useRouter()
-  const [shoes, setShoes] = useState<Shoe[]>([])
-  const [loading, setLoading] = useState(true)
+  const [shoes, setShoes]       = useState<Shoe[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [userId, setUserId]     = useState<string | null>(null)
+
+  // Wishlist state per shoe — true=saved, false=not saved, null=loading
+  const [wishlist, setWishlist] = useState<Record<number, boolean>>({})
+  const [wishlistIds, setWishlistIds] = useState<Record<number, number>>({}) // wishlist row id per shoe
+  const [savingId, setSavingId] = useState<number | null>(null)
 
   useEffect(() => {
     if (!router.isReady) return
@@ -40,13 +44,62 @@ export default function ComparePage() {
 
     supabase.from("shoe").select("*").in("id", idList).then(({ data }) => {
       if (data) {
-        // Keep order matching URL params
         const sorted = idList.map(id => data.find(s => s.id === id)).filter(Boolean) as Shoe[]
         setShoes(sorted)
       }
       setLoading(false)
     })
   }, [router.isReady, router.query.ids])
+
+  // Load user + wishlist status
+  useEffect(() => {
+    if (shoes.length === 0) return
+    const load = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      setUserId(user.id)
+
+      const { data: wl } = await supabase
+        .from("wishlist")
+        .select("id, shoe_id")
+        .eq("user_id", user.id)
+        .in("shoe_id", shoes.map(s => s.id))
+
+      if (wl) {
+        const saved: Record<number, boolean> = {}
+        const ids: Record<number, number> = {}
+        wl.forEach(row => { saved[row.shoe_id] = true; ids[row.shoe_id] = row.id })
+        setWishlist(saved)
+        setWishlistIds(ids)
+      }
+    }
+    load()
+  }, [shoes])
+
+  const toggleWishlist = async (shoeId: number) => {
+    if (!userId) { router.push("/login"); return }
+    if (savingId) return
+    setSavingId(shoeId)
+
+    if (wishlist[shoeId]) {
+      const { error } = await supabase.from("wishlist").delete().eq("id", wishlistIds[shoeId])
+      if (!error) {
+        setWishlist(prev => ({ ...prev, [shoeId]: false }))
+        window.dispatchEvent(new Event("wishlist-updated"))
+      }
+    } else {
+      const { data, error } = await supabase
+        .from("wishlist")
+        .insert({ user_id: userId, shoe_id: shoeId })
+        .select("id").single()
+      if (!error && data) {
+        setWishlist(prev => ({ ...prev, [shoeId]: true }))
+        setWishlistIds(prev => ({ ...prev, [shoeId]: data.id }))
+        window.dispatchEvent(new Event("wishlist-updated"))
+      }
+    }
+    setSavingId(null)
+  }
 
   if (loading) return (
     <div className="min-h-screen bg-white"><Navbar />
@@ -66,46 +119,15 @@ export default function ComparePage() {
     </div>
   )
 
-  const prices  = shoes.map(s => s.price)
-  const colW    = shoes.length === 2 ? "w-1/2" : "w-1/3"
+  const prices = shoes.map(s => s.price)
+  const ids    = shoes.map(s => s.id).join(",")
 
-  // Stats rows
   const stats = [
-    {
-      label: "Price",
-      key: "price",
-      values: shoes.map(s => `$${s.price}`),
-      raw: prices,
-      highlight: true,
-    },
-    {
-      label: "Model Line",
-      key: "model_line",
-      values: shoes.map(s => s.model_line),
-      raw: null,
-      highlight: false,
-    },
-    {
-      label: "Gender",
-      key: "gender",
-      values: shoes.map(s => s.gender),
-      raw: null,
-      highlight: false,
-    },
-    {
-      label: "Width",
-      key: "width",
-      values: shoes.map(s => s.width ? s.width.charAt(0).toUpperCase() + s.width.slice(1) : "Standard"),
-      raw: null,
-      highlight: false,
-    },
-    {
-      label: "Activity",
-      key: "category",
-      values: shoes.map(s => CATEGORY_MAP[s.category_id] ?? "General"),
-      raw: null,
-      highlight: false,
-    },
+    { label: "Price",      values: shoes.map(s => `$${s.price}`), raw: prices, highlight: true },
+    { label: "Model Line", values: shoes.map(s => s.model_line),  raw: null,   highlight: false },
+    { label: "Gender",     values: shoes.map(s => s.gender),      raw: null,   highlight: false },
+    { label: "Width",      values: shoes.map(s => s.width ? s.width.charAt(0).toUpperCase() + s.width.slice(1) : "Standard"), raw: null, highlight: false },
+    { label: "Activity",   values: shoes.map(s => CATEGORY_MAP[s.category_id] ?? "General"), raw: null, highlight: false },
   ]
 
   return (
@@ -119,12 +141,15 @@ export default function ComparePage() {
             <h1 className="text-3xl font-bold">Compare Shoes</h1>
             <p className="text-gray-400 text-sm mt-1">Comparing {shoes.length} shoes</p>
           </div>
-          <Link href="/catalog"
-            className="text-sm text-gray-500 hover:text-black transition flex items-center gap-1">
+          {/* Change selection — passes current IDs back so catalog pre-selects them */}
+          <Link
+            href={`/catalog?compareIds=${ids}`}
+            className="text-sm text-gray-500 hover:text-black transition flex items-center gap-1 border
+                       border-gray-200 rounded-lg px-3 py-2 hover:border-black">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path d="M15 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            Back to catalog
+            Change selection
           </Link>
         </div>
 
@@ -133,18 +158,42 @@ export default function ComparePage() {
           {/* Photos row */}
           <div className="flex border-b border-gray-100">
             {shoes.map((shoe, i) => (
-              <div key={shoe.id} className={`${colW} ${i < shoes.length - 1 ? 'border-r border-gray-100' : ''} p-6`}>
+              <div key={shoe.id}
+                className={`flex-1 ${i < shoes.length - 1 ? 'border-r border-gray-100' : ''} p-5`}>
+
                 <div className="aspect-square bg-gray-50 rounded-xl overflow-hidden mb-4 flex items-center justify-center">
                   <img src={shoe.image_url} alt={shoe.name}
                     className="w-full h-full object-contain p-4" />
                 </div>
+
                 <h2 className="font-bold text-gray-900 text-base leading-tight">{shoe.name}</h2>
-                <p className="text-sm text-gray-400 mt-0.5">{shoe.model_line}</p>
-                <div className="flex gap-2 mt-3">
+                <p className="text-sm text-gray-400 mt-0.5 mb-3">{shoe.model_line}</p>
+
+                <div className="flex gap-2">
+                  {/* Wishlist button */}
+                  <button
+                    onClick={() => toggleWishlist(shoe.id)}
+                    disabled={savingId === shoe.id}
+                    title={wishlist[shoe.id] ? "Remove from wishlist" : "Save to wishlist"}
+                    className={`w-9 h-9 rounded-lg border-2 flex items-center justify-center transition shrink-0
+                      ${wishlist[shoe.id]
+                        ? 'bg-red-50 border-red-300 hover:bg-red-100'
+                        : 'bg-white border-gray-200 hover:border-red-300 hover:bg-red-50'
+                      } disabled:opacity-40`}>
+                    <svg className={`w-4 h-4 ${wishlist[shoe.id] ? 'text-red-500' : 'text-gray-300'}`}
+                      fill={wishlist[shoe.id] ? "currentColor" : "none"}
+                      stroke={wishlist[shoe.id] ? "none" : "currentColor"}
+                      strokeWidth={2} viewBox="0 0 24 24">
+                      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"
+                        strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </button>
+
                   <Link href={`/shoes/${shoe.id}`}
                     className="flex-1 text-center text-xs py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition font-medium">
                     View
                   </Link>
+
                   {shoe.external_url && (
                     <a href={shoe.external_url} target="_blank" rel="noopener noreferrer"
                       className="flex-1 text-center text-xs py-2 border border-gray-200 text-gray-600 rounded-lg hover:border-black hover:text-black transition font-medium">
@@ -158,26 +207,24 @@ export default function ComparePage() {
 
           {/* Stats rows */}
           {stats.map((stat, si) => (
-            <div key={stat.key}
+            <div key={stat.label}
               className={`flex ${si < stats.length - 1 ? 'border-b border-gray-50' : ''}`}>
-              {/* Label column */}
+              {/* Label */}
               <div className="w-28 shrink-0 px-5 py-4 flex items-center bg-gray-50 border-r border-gray-100">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{stat.label}</p>
               </div>
-              {/* Value columns */}
+              {/* Values */}
               {shoes.map((shoe, i) => {
                 const val  = stat.values[i]
                 const best = stat.highlight && stat.raw
-                  ? isBetter("price", stat.raw[i], stat.raw)
+                  ? isBetter(stat.raw[i], stat.raw)
                   : false
-
                 return (
                   <div key={shoe.id}
                     className={`flex-1 px-5 py-4 flex items-center
                       ${i < shoes.length - 1 ? 'border-r border-gray-100' : ''}
                       ${best ? 'bg-green-50' : ''}`}>
-                    <span className={`text-sm font-medium
-                      ${best ? 'text-green-700' : 'text-gray-700'}`}>
+                    <span className={`text-sm font-medium ${best ? 'text-green-700' : 'text-gray-700'}`}>
                       {val}
                       {best && (
                         <span className="ml-1.5 text-xs bg-green-100 text-green-600 px-1.5 py-0.5 rounded-full font-normal">
@@ -190,14 +237,6 @@ export default function ComparePage() {
               })}
             </div>
           ))}
-        </div>
-
-        {/* Change shoes */}
-        <div className="mt-6 text-center">
-          <Link href="/catalog"
-            className="text-sm text-gray-400 hover:text-black transition underline">
-            Change selection
-          </Link>
         </div>
       </main>
     </div>
