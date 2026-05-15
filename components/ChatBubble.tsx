@@ -240,7 +240,7 @@ export default function ChatBubble() {
                             <div className="flex items-center justify-between mt-1">
                               <p className="text-xs font-bold text-gray-700">{shoe.price_range}</p>
                               <p className="text-xs text-blue-600 font-medium group-hover:underline">
-                                View on {shoe.brand} site
+                                Find on Google Shopping
                               </p>
                             </div>
                           </div>
