@@ -236,7 +236,7 @@ export default function Home() {
               </>
             ) : (
               <>
-                <Link href={slide.primaryHref}>
+                <Link href={user ? slide.primaryHref : '/login'}>
                   <button className="bg-white text-black px-6 py-3 rounded-full hover:bg-gray-200 transition font-medium">
                     {slide.primaryLabel}
                   </button>
