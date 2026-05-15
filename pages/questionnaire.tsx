@@ -85,7 +85,7 @@ export default function Questionnaire() {
       .eq("id", userId)
 
     if (error) { console.error("Update error:", error.message); return }
-    router.push("/catalog")
+    router.push("/recommendations")
   }
 
   return (
