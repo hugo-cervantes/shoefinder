@@ -3,61 +3,41 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
-interface ShoeReasoningRequest {
-  shoe: {
-    name: string
-    model_line: string
-    price: number
-    gender: string
-    width: string
-    category_id: number
-  }
-  userProfile: {
-    shoe_width: string
-    category_id: number
-    gender: string
-    brand_sizes?: Record<string, number>
-  }
-}
-
 const CATEGORY_MAP: Record<number, string> = {
-  1: 'Running',
-  2: 'Casual',
-  3: 'Sports',
-  4: 'Hiking',
+  1: 'Running', 2: 'Casual', 3: 'Sports', 4: 'Hiking',
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' })
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { shoe, userProfile } = req.body as ShoeReasoningRequest
+  const { shoe, userProfile, score } = req.body
 
-  if (!shoe || !userProfile) {
-    return res.status(400).json({ error: 'Missing shoe or userProfile' })
-  }
+  if (!shoe || !userProfile) return res.status(400).json({ error: 'Missing data' })
 
   const apiKey = process.env.GROQ_API_KEY
-  if (!apiKey) {
-    return res.status(500).json({ error: 'API key not configured' })
-  }
+  if (!apiKey) return res.status(500).json({ error: 'API key not configured' })
 
-  const categoryLabel    = CATEGORY_MAP[shoe.category_id] ?? 'General'
-  const userCategory     = CATEGORY_MAP[userProfile.category_id] ?? 'General'
-  const brandSizeInfo    = userProfile.brand_sizes
-    ? Object.entries(userProfile.brand_sizes)
-        .map(([brand, size]) => `${brand}: size ${size}`)
-        .join(', ')
+  const categoryLabel = CATEGORY_MAP[shoe.category_id] ?? 'General'
+  const userCategories = (userProfile.category_ids?.length
+    ? userProfile.category_ids.map((id: number) => CATEGORY_MAP[id]).filter(Boolean)
+    : [CATEGORY_MAP[userProfile.category_id]]
+  ).join(', ')
+
+  const userWidths = userProfile.shoe_widths?.length
+    ? userProfile.shoe_widths.join(', ')
+    : userProfile.shoe_width
+
+  const brandSizeInfo = userProfile.brand_sizes
+    ? Object.entries(userProfile.brand_sizes).map(([b, s]) => `${b}: size ${s}`).join(', ')
     : 'not provided'
 
-  const prompt = `You are SoleMate's AI shoe expert. A user has been matched with a shoe and you need to explain WHY it's a great fit for them specifically.
+  const prompt = `You are SoleMate's AI shoe expert. A user has been matched with a shoe and scored ${score}/100 for fit compatibility.
 
 USER PROFILE:
 - Gender: ${userProfile.gender}
-- Preferred width: ${userProfile.shoe_width}
-- Activity: ${userCategory}
-- Their brand sizes: ${brandSizeInfo}
+- Preferred width(s): ${userWidths}
+- Activity/use: ${userCategories}
+- Brand sizes: ${brandSizeInfo}
 
 MATCHED SHOE:
 - Name: ${shoe.name}
@@ -67,7 +47,9 @@ MATCHED SHOE:
 - Width: ${shoe.width}
 - Category: ${categoryLabel}
 
-Using your knowledge of this specific shoe model, write a concise 2-3 sentence explanation of why this shoe is a great match for this user. Be specific about the shoe's real features (cushioning, support, material, use case) and connect them directly to the user's needs. Sound like a knowledgeable friend, not a salesperson. Do not use bullet points. Do not start with "This shoe" — vary your opening.`
+FIT SCORE: ${score}/100
+
+Write a concise 2-3 sentence explanation of why this shoe scored ${score}/100 for this user. Reference the shoe's real features and connect them to the user's specific needs. If the score is high (85+), be enthusiastic. If mid-range (60-84), acknowledge what works and what's a compromise. If lower (<60), be honest about why it's not a perfect match. Sound like a knowledgeable friend. Do not use bullet points. Do not start with "This shoe".`
 
   try {
     const response = await fetch(GROQ_API_URL, {
@@ -79,7 +61,7 @@ Using your knowledge of this specific shoe model, write a concise 2-3 sentence e
       body: JSON.stringify({
         model: 'llama-3.1-8b-instant',
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 150,
+        max_tokens: 160,
         temperature: 0.7,
       }),
     })
@@ -92,7 +74,6 @@ Using your knowledge of this specific shoe model, write a concise 2-3 sentence e
 
     const data = await response.json()
     const reasoning = data.choices?.[0]?.message?.content?.trim() ?? ''
-
     return res.status(200).json({ reasoning })
 
   } catch (err) {
