@@ -88,7 +88,11 @@ YOUR JOB:
 7. Keep responses conversational — not too long, not bullet-point heavy
 8. If the user's question isn't about shoes, gently steer back to helping them find footwear
 
-IMPORTANT: Only suggest outside shoes when the catalog genuinely doesn't have a good match. Always check the catalog first.`
+CRITICAL RULES:
+- NEVER show your thinking process, reasoning steps, or internal analysis
+- NEVER use phrases like "Let me think", "I need to", "First I'll", "Looking at the catalog", "Based on my analysis"
+- Go straight to your response — friendly, direct, conversational
+- Only suggest outside shoes when the catalog genuinely doesn't have a good match. Always check the catalog first.`
 
   try {
     const response = await fetch(GROQ_API_URL, {
@@ -135,11 +139,20 @@ IMPORTANT: Only suggest outside shoes when the catalog genuinely doesn't have a 
       }
     }
 
-    // Clean the message text (remove the special tags)
-    const cleanMessage = raw
+    // Strip thinking/reasoning leakage patterns
+    let cleaned = raw
+      // Remove <think>...</think> blocks (some models use this)
+      .replace(/<think>[\s\S]*?<\/think>/gi, '')
+      // Remove lines starting with thinking phrases
+      .replace(/^(Let me (think|analyze|look|check|search|consider|review).*|I need to.*|First,? I.*|Looking at.*|Based on my.*|Analyzing.*|Step \d+:.*|Okay,? (so|let me|I).*)[\r\n]*/gim, '')
+      // Remove the special tags
       .replace(/\{\{SHOE:\d+\}\}/g, '')
       .replace(/\{\{EXTERNAL:[\s\S]*?\}\}/g, '')
+      // Clean up extra blank lines left behind
+      .replace(/\n{3,}/g, '\n\n')
       .trim()
+
+    const cleanMessage = cleaned
 
     // Fetch full shoe data for referenced catalog shoes
     let catalogMatches: CatalogShoe[] = []
