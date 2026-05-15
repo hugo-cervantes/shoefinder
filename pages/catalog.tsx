@@ -28,6 +28,12 @@ const WIDTHS = [
   { label: "Extra Wide", value: "extra wide" },
 ]
 
+const GENDERS = [
+  { label: "Men",    value: "Men" },
+  { label: "Women",  value: "Women" },
+  { label: "Unisex", value: "Unisex" },
+]
+
 const PRICE_MIN = 0
 const PRICE_MAX = 500
 
@@ -68,6 +74,7 @@ export default function CatalogPage() {
   const [selectedWidths, setSelectedWidths]           = useState<string[]>([])
   const [searchQuery, setSearchQuery]                 = useState("")
   const [priceRange, setPriceRange]                   = useState<[number, number]>([PRICE_MIN, PRICE_MAX])
+  const [selectedGenders, setSelectedGenders]           = useState<string[]>([])
 
   // Read URL params
   useEffect(() => {
@@ -91,6 +98,7 @@ export default function CatalogPage() {
       if (selectedCategoryIds.length > 0) q = q.in("category_id", selectedCategoryIds)
       if (selectedWidths.length > 0)      q = q.in("width", selectedWidths)
       if (searchQuery.trim())             q = q.or(`name.ilike.%${searchQuery.trim()}%,model_line.ilike.%${searchQuery.trim()}%`)
+      if (selectedGenders.length > 0)     q = q.in("gender", selectedGenders)
       q = q.gte("price", priceRange[0]).lte("price", priceRange[1])
       const { data, error } = await q
       if (error) console.error(error)
@@ -98,7 +106,7 @@ export default function CatalogPage() {
       setLoading(false)
     }
     fetchShoes()
-  }, [selectedCategoryIds, selectedWidths, searchQuery, priceRange])
+  }, [selectedCategoryIds, selectedWidths, searchQuery, priceRange, selectedGenders])
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -110,6 +118,9 @@ export default function CatalogPage() {
     return () => document.removeEventListener("mousedown", handler)
   }, [])
 
+  const toggleGender = (value: string) =>
+    setSelectedGenders(prev => prev.includes(value) ? prev.filter(x => x !== value) : [...prev, value])
+
   const toggleCategory = (id: number) =>
     setSelectedCategoryIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
 
@@ -119,7 +130,7 @@ export default function CatalogPage() {
   const clearAll = () => {
     setSelectedCategoryIds([]); setSelectedWidths([])
     setSearchQuery(""); setPriceRange([PRICE_MIN, PRICE_MAX])
-    setFilterOpen(false)
+    setSelectedGenders([]); setFilterOpen(false)
   }
 
   const toggleCompare = (id: number) => {
@@ -131,7 +142,7 @@ export default function CatalogPage() {
   }
 
   const activeFilterCount =
-    selectedCategoryIds.length + selectedWidths.length +
+    selectedCategoryIds.length + selectedWidths.length + selectedGenders.length +
     (priceRange[0] !== PRICE_MIN || priceRange[1] !== PRICE_MAX ? 1 : 0)
 
   const sortedShoes = sortShoes(shoes, sort)
@@ -171,6 +182,12 @@ export default function CatalogPage() {
                   <span key={w} className="flex items-center gap-1 text-xs bg-gray-600 text-white px-2.5 py-1 rounded-full capitalize">
                     {w}
                     <button onClick={() => toggleWidth(w)} className="hover:opacity-70">x</button>
+                  </span>
+                ))}
+                {selectedGenders.map(g => (
+                  <span key={g} className="flex items-center gap-1 text-xs bg-gray-600 text-white px-2.5 py-1 rounded-full">
+                    {g}
+                    <button onClick={() => toggleGender(g)} className="hover:opacity-70">x</button>
                   </span>
                 ))}
                 {(priceRange[0] !== PRICE_MIN || priceRange[1] !== PRICE_MAX) && (
@@ -255,6 +272,16 @@ export default function CatalogPage() {
                         className={`text-xs px-3 py-1.5 rounded-full border transition font-medium
                           ${selectedWidths.includes(w.value) ? 'bg-black text-white border-black' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
                         {w.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Gender</p>
+                  <div className="flex flex-wrap gap-1.5 mb-5">
+                    {GENDERS.map(g => (
+                      <button key={g.value} onClick={() => toggleGender(g.value)}
+                        className={`text-xs px-3 py-1.5 rounded-full border transition font-medium ${selectedGenders.includes(g.value) ? 'bg-black text-white border-black' : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400'}`}>
+                        {g.label}
                       </button>
                     ))}
                   </div>
