@@ -68,8 +68,28 @@ export default function ChatBubble() {
 
   useEffect(() => {
     if (!user) return
-    const t = setTimeout(() => setNudge(true), 8000)
-    return () => clearTimeout(t)
+
+    // Show nudge after 8s, hide after 4s, repeat every 45s
+    const show = () => {
+      setNudge(true)
+      const hide = setTimeout(() => setNudge(false), 4000)
+      return hide
+    }
+
+    let hideTimer: NodeJS.Timeout
+    const firstShow = setTimeout(() => {
+      hideTimer = show()
+    }, 8000)
+
+    const interval = setInterval(() => {
+      hideTimer = show()
+    }, 45000)
+
+    return () => {
+      clearTimeout(firstShow)
+      clearTimeout(hideTimer)
+      clearInterval(interval)
+    }
   }, [user])
 
   useEffect(() => {
