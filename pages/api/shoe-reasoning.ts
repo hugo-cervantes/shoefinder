@@ -40,12 +40,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   // ── Score-only mode (fast — just a number) ────────────────────────────
   if (mode === 'score') {
-    const prompt = `Score this shoe's fit for this user from 0 to 100. Return ONLY a JSON object like {"score": 74} — nothing else.
+    const prompt = `You are a shoe fit expert. Give this specific shoe a precise fit score for this user.
 
-USER: gender=${userProfile.gender}, width(s)=${userWidths}, activities=${userCategories}, brand sizes=${brandSizeInfo}
-SHOE: ${shoe.name} (${shoe.model_line}), $${shoe.price}, gender=${shoe.gender}, width=${shoe.width}, category=${categoryLabel}
+USER: gender=${userProfile.gender}, width preference=${userWidths}, activities=${userCategories}
+SHOE: ${shoe.name} (${shoe.model_line}), gender=${shoe.gender}, width=${shoe.width}, category=${categoryLabel}
 
-Use your real knowledge of this shoe model. Be precise — spread scores across the full 0-100 range. A perfect match ~90, good ~72, average ~55, poor ~30.`
+Think about this exact shoe model and score it for this specific user:
+- How well does the ${shoe.name} width (${shoe.width}) match what this user needs (${userWidths})?
+- Is the ${shoe.name} genuinely designed for ${userCategories} or is it a stretch?
+- Does the ${shoe.name} run true to size, narrow, or wide based on real user reviews?
+- How good is the cushioning and support of the ${shoe.name} for the user's activities?
+
+Give a precise integer score 0-100 that reflects all of these factors for THIS specific shoe and THIS specific user. Make every shoe's score unique and specific — do NOT round to the nearest 10 or 20. Scores like 67, 83, 71, 45, 88 are good. Scores like 60, 80, 40 are too rounded.
+
+Return ONLY: {"score": <integer>}`
 
     try {
       const response = await fetch(GROQ_API_URL, {
@@ -98,7 +106,7 @@ SHOE:
 - Width: ${shoe.width}
 - Category: ${categoryLabel}
 
-Score 0-100 using your real knowledge of this shoe. Consider: true-to-size fit, width accuracy, suitability for stated activities, cushioning/support, known quirks of this model. Use the full range — avoid clustering near 100.
+Score 0-100 using your real knowledge of this exact shoe model. Base the score on: how well the actual width fits, suitability for the stated activities, whether it runs true to size, cushioning and support quality, and any known quirks. Give a precise score — not rounded to 10s or 20s. Examples of good scores: 67, 83, 71, 45, 88. Different shoes must get meaningfully different scores.
 
 Respond ONLY with valid JSON, no other text:
 {"score": <0-100>, "reasoning": "<2-3 sentences referencing real features of this shoe and why it scored this way>"}`
