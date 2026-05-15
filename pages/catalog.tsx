@@ -76,6 +76,11 @@ export default function CatalogPage() {
     if (search)     setSearchQuery(String(search))
     if (categories) setSelectedCategoryIds(String(categories).split(",").map(Number).filter(Boolean))
     if (widths)     setSelectedWidths(String(widths).split(","))
+    // Pre-select shoes coming back from compare page
+    if (router.query.compareIds) {
+      const ids = String(router.query.compareIds).split(",").map(Number).filter(Boolean)
+      setCompareIds(ids)
+    }
   }, [router.isReady, router.query])
 
   // Fetch shoes
