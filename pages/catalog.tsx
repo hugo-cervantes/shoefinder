@@ -380,56 +380,57 @@ export default function CatalogPage() {
         </div>
       </main>
 
-      {/* Sticky compare bar */}
+      {/* Compare knob - collapsed tab on right side, expands on hover */}
       {compareIds.length > 0 && (
-        <div className="fixed bottom-6 left-6 z-40 bg-white border border-gray-200 rounded-2xl shadow-2xl
-                        px-5 py-4 flex items-center gap-4">
-          <div className="flex items-center gap-3">
-            <p className="text-sm font-semibold text-gray-700 shrink-0">
-              Comparing {compareIds.length}/3
-            </p>
-            <div className="flex items-center gap-2">
-              {compareIds.map(id => {
-                const shoe = sortedShoes.find(s => s.id === id)
-                if (!shoe) return null
-                return (
-                  <div key={id} className="relative">
-                    <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
-                      <img src={shoe.image_url} alt={shoe.name}
-                        className="w-full h-full object-contain p-1" />
+        <div className="fixed right-0 top-1/2 -translate-y-1/2 z-40 group flex items-center">
+          {/* Expanded panel - slides in from right on hover */}
+          <div className="overflow-hidden max-w-0 group-hover:max-w-xs transition-all duration-300 ease-in-out">
+            <div className="bg-white border border-r-0 border-gray-200 rounded-l-2xl shadow-xl px-4 py-4 flex flex-col gap-3 w-64">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Comparing {compareIds.length}/3</p>
+                <button onClick={() => setCompareIds([])} className="text-xs text-gray-400 hover:text-black transition">Clear</button>
+              </div>
+              <div className="flex flex-col gap-2">
+                {compareIds.map(id => {
+                  const shoe = sortedShoes.find(s => s.id === id)
+                  if (!shoe) return null
+                  return (
+                    <div key={id} className="flex items-center gap-2">
+                      <div className="w-10 h-10 bg-gray-100 rounded-lg overflow-hidden border border-gray-200 shrink-0">
+                        <img src={shoe.image_url} alt={shoe.name} className="w-full h-full object-contain p-1" />
+                      </div>
+                      <p className="text-xs text-gray-700 truncate flex-1">{shoe.name}</p>
+                      <button onClick={() => toggleCompare(id)}
+                        className="w-4 h-4 bg-gray-200 text-gray-600 rounded-full flex items-center justify-center text-xs hover:bg-red-500 hover:text-white transition shrink-0">
+                        x
+                      </button>
                     </div>
-                    <button
-                      onClick={() => toggleCompare(id)}
-                      className="absolute -top-1 -right-1 w-4 h-4 bg-gray-800 text-white rounded-full
-                                 flex items-center justify-center text-xs leading-none hover:bg-red-500 transition">
-                      x
-                    </button>
+                  )
+                })}
+                {Array.from({ length: 3 - compareIds.length }).map((_, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <div className="w-10 h-10 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-300 text-xs shrink-0">+</div>
+                    <p className="text-xs text-gray-300">Add a shoe</p>
                   </div>
-                )
-              })}
-              {/* Empty slots */}
-              {Array.from({ length: 3 - compareIds.length }).map((_, i) => (
-                <div key={i} className="w-12 h-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200
-                                        flex items-center justify-center text-gray-300 text-xs">
-                  +
-                </div>
-              ))}
+                ))}
+              </div>
+              <Link
+                href={compareIds.length >= 2 ? `/compare?ids=${compareIds.join(',')}` : '#'}
+                className={`text-center py-2 rounded-xl text-sm font-semibold transition
+                  ${compareIds.length >= 2 ? 'bg-black text-white hover:bg-gray-800' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}>
+                {compareIds.length >= 2 ? 'Compare Now' : `Need ${2 - compareIds.length} more`}
+              </Link>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button onClick={() => setCompareIds([])}
-              className="text-sm text-gray-400 hover:text-black transition">
-              Clear
-            </button>
-            <Link
-              href={compareIds.length >= 2 ? `/compare?ids=${compareIds.join(',')}` : '#'}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition whitespace-nowrap shrink-0
-                ${compareIds.length >= 2
-                  ? 'bg-black text-white hover:bg-gray-800'
-                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                }`}>
-              {compareIds.length >= 2 ? 'Compare Now' : `Compare Now (need ${2 - compareIds.length} more)`}
-            </Link>
+
+          {/* The tab/knob */}
+          <div className="bg-black text-white rounded-l-xl py-8 px-1.5 shadow-lg cursor-pointer flex flex-col items-center gap-1 select-none">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span className="text-xs font-bold" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', letterSpacing: '0.05em' }}>
+              Compare {compareIds.length}
+            </span>
           </div>
         </div>
       )}
