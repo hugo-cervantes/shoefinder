@@ -1,6 +1,6 @@
 // pages/api/shoe-reasoning.ts
-// Handles both scoring (fast, no reasoning) and full reasoning
-// mode: "score" = just return score | "full" = return score + reasoning
+// mode: "rank"    → send all shoes, AI picks best 10 and scores them 1-10
+// mode: "explain" → send one shoe + its score, AI explains why
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 
@@ -10,50 +10,62 @@ const CATEGORY_MAP: Record<number, string> = {
   1: 'Running', 2: 'Casual', 3: 'Sports', 4: 'Hiking',
 }
 
-function buildContext(shoe: any, userProfile: any) {
-  const categoryLabel  = CATEGORY_MAP[shoe.category_id] ?? 'General'
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+
+  const { shoes, shoe, userProfile, score, mode = 'rank' } = req.body
+  if (!userProfile) return res.status(400).json({ error: 'Missing userProfile' })
+
+  const apiKey = process.env.GROQ_API_KEY
+  if (!apiKey) return res.status(500).json({ error: 'API key not configured' })
+
   const userCategories = (
     userProfile.category_ids?.length
       ? userProfile.category_ids.map((id: number) => CATEGORY_MAP[id]).filter(Boolean)
       : [CATEGORY_MAP[userProfile.category_id]]
   ).join(', ')
+
   const userWidths = userProfile.shoe_widths?.length
     ? userProfile.shoe_widths.join(', ')
     : userProfile.shoe_width
+
   const brandSizeInfo = userProfile.brand_sizes && Object.keys(userProfile.brand_sizes).length > 0
     ? Object.entries(userProfile.brand_sizes).map(([b, s]) => `${b}: size ${s}`).join(', ')
     : 'not provided'
 
-  return { categoryLabel, userCategories, userWidths, brandSizeInfo }
-}
+  // ── RANK mode: pick best 10 from all shoes and score them 1-10 ────────
+  if (mode === 'rank') {
+    if (!shoes || !Array.isArray(shoes)) return res.status(400).json({ error: 'Missing shoes array' })
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+    const shoeList = shoes.map((s: any) =>
+      `ID:${s.id} | ${s.name} (${s.model_line}) | width:${s.width} | category:${CATEGORY_MAP[s.category_id] ?? s.category_id} | gender:${s.gender} | $${s.price}`
+    ).join('\n')
 
-  const { shoe, userProfile, mode = 'full' } = req.body
-  if (!shoe || !userProfile) return res.status(400).json({ error: 'Missing data' })
+    const prompt = `You are an expert shoe fit analyst. A user needs you to pick the 10 best fitting shoes for them from a catalog and score each one.
 
-  const apiKey = process.env.GROQ_API_KEY
-  if (!apiKey) return res.status(500).json({ error: 'API key not configured' })
+USER PROFILE:
+- Gender: ${userProfile.gender}
+- Width preference: ${userWidths}
+- Activities: ${userCategories}
+- Brand sizes: ${brandSizeInfo}
 
-  const { categoryLabel, userCategories, userWidths, brandSizeInfo } = buildContext(shoe, userProfile)
+SHOE CATALOG:
+${shoeList}
 
-  // ── Score-only mode (fast — just a number) ────────────────────────────
-  if (mode === 'score') {
-    const prompt = `You are a shoe fit expert. Give this specific shoe a precise fit score for this user.
+YOUR TASK:
+1. Review every shoe in the catalog above using your real knowledge of each model
+2. Pick the 10 shoes that are genuinely the best fit for this specific user
+3. Score each of your top 10 from 1-10 (10 = perfect fit, 1 = poor fit)
+4. Scores must be spread across the 1-10 range — do NOT give every shoe a 9 or 10
+5. Only one shoe can score a 10. At most two shoes can score a 9.
+6. Consider: does this exact model run true to width? Is it designed for these activities? Real user reviews? Cushioning for the use case?
 
-USER: gender=${userProfile.gender}, width preference=${userWidths}, activities=${userCategories}
-SHOE: ${shoe.name} (${shoe.model_line}), gender=${shoe.gender}, width=${shoe.width}, category=${categoryLabel}
+IMPORTANT: Your top 10 must be chosen because they genuinely suit this user — not just the first 10 in the list. A shoe at the bottom of the list might be a better fit than one at the top.
 
-Think about this exact shoe model and score it for this specific user:
-- How well does the ${shoe.name} width (${shoe.width}) match what this user needs (${userWidths})?
-- Is the ${shoe.name} genuinely designed for ${userCategories} or is it a stretch?
-- Does the ${shoe.name} run true to size, narrow, or wide based on real user reviews?
-- How good is the cushioning and support of the ${shoe.name} for the user's activities?
+Return ONLY a JSON array, no other text:
+[{"id": <shoe_id>, "score": <1-10>}, ...]
 
-Give a precise integer score 0-100 that reflects all of these factors for THIS specific shoe and THIS specific user. Make every shoe's score unique and specific — do NOT round to the nearest 10 or 20. Scores like 67, 83, 71, 45, 88 are good. Scores like 60, 80, 40 are too rounded.
-
-Return ONLY: {"score": <integer>}`
+Order the array from highest score to lowest.`
 
     try {
       const response = await fetch(GROQ_API_URL, {
@@ -62,97 +74,79 @@ Return ONLY: {"score": <integer>}`
         body: JSON.stringify({
           model: 'llama-3.1-8b-instant',
           messages: [{ role: 'user', content: prompt }],
-          max_tokens: 20,
-          temperature: 0.1,  // near-zero = consistent, deterministic scores
+          max_tokens: 300,
+          temperature: 0.1,
+        }),
+      })
+
+      if (!response.ok) {
+        console.error('Groq rank error:', await response.text())
+        return res.status(500).json({ error: 'AI service error' })
+      }
+
+      const data = await response.json()
+      const raw = data.choices?.[0]?.message?.content?.trim() ?? ''
+      const clean = raw.replace(/```json|```/g, '').trim()
+
+      let rankings: { id: number; score: number }[]
+      try {
+        rankings = JSON.parse(clean)
+        // Validate and clamp scores
+        rankings = rankings
+          .filter(r => r.id != null && r.score != null)
+          .map(r => ({ id: Number(r.id), score: Math.min(10, Math.max(1, Math.round(r.score))) }))
+          .slice(0, 10)
+      } catch {
+        console.error('Failed to parse rankings:', raw)
+        return res.status(500).json({ error: 'Failed to parse AI rankings' })
+      }
+
+      return res.status(200).json({ rankings })
+
+    } catch (err) {
+      console.error('Rank error:', err)
+      return res.status(500).json({ error: 'Failed to rank shoes' })
+    }
+  }
+
+  // ── EXPLAIN mode: explain why a shoe got its score ────────────────────
+  if (mode === 'explain') {
+    if (!shoe) return res.status(400).json({ error: 'Missing shoe' })
+    if (score == null) return res.status(400).json({ error: 'Missing score' })
+
+    const categoryLabel = CATEGORY_MAP[shoe.category_id] ?? 'General'
+
+    const prompt = `You are SoleMate's AI shoe expert. Explain in 2-3 sentences why the ${shoe.name} scored ${score}/10 for this user.
+
+USER: gender=${userProfile.gender}, width=${userWidths}, activities=${userCategories}
+SHOE: ${shoe.name} (${shoe.model_line}), width=${shoe.width}, category=${categoryLabel}, $${shoe.price}
+SCORE: ${score}/10
+
+Reference real features of the ${shoe.name}. ${score >= 8 ? 'Be enthusiastic about what makes it great.' : score >= 5 ? 'Acknowledge what works and what is a compromise.' : 'Be honest about why it is not a strong match.'} Do not start with "This shoe". Do not use bullet points.`
+
+    try {
+      const response = await fetch(GROQ_API_URL, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'llama-3.1-8b-instant',
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: 160,
+          temperature: 0.2,
         }),
       })
 
       if (!response.ok) return res.status(500).json({ error: 'AI service error' })
 
       const data = await response.json()
-      const raw = data.choices?.[0]?.message?.content?.trim() ?? ''
-      const clean = raw.replace(/```json|```/g, '').trim()
-
-      let score = 50
-      try {
-        const parsed = JSON.parse(clean)
-        score = Math.min(100, Math.max(0, Math.round(Number(parsed.score))))
-      } catch {
-        const match = raw.match(/\d+/)
-        if (match) score = Math.min(100, Math.max(0, Math.round(Number(match[0]))))
-      }
-
-      return res.status(200).json({ score })
+      const reasoning = data.choices?.[0]?.message?.content?.trim() ?? ''
+      return res.status(200).json({ reasoning })
 
     } catch (err) {
-      console.error('Score error:', err)
-      return res.status(500).json({ error: 'Failed to score' })
+      console.error('Explain error:', err)
+      return res.status(500).json({ error: 'Failed to generate explanation' })
     }
   }
 
-  // ── Full mode (score + reasoning) ────────────────────────────────────
-  const prompt = `You are SoleMate's AI shoe expert. Score this shoe 0-100 for fit and explain why.
-
-USER PROFILE:
-- Gender: ${userProfile.gender}
-- Preferred width(s): ${userWidths}
-- Activities: ${userCategories}
-- Brand sizes: ${brandSizeInfo}
-
-SHOE:
-- Name: ${shoe.name} (${shoe.model_line})
-- Price: $${shoe.price}
-- Gender: ${shoe.gender}
-- Width: ${shoe.width}
-- Category: ${categoryLabel}
-
-Score 0-100 using your real knowledge of this exact shoe model. Base the score on: how well the actual width fits, suitability for the stated activities, whether it runs true to size, cushioning and support quality, and any known quirks. Give a precise score — not rounded to 10s or 20s. Examples of good scores: 67, 83, 71, 45, 88. Different shoes must get meaningfully different scores.
-
-Respond ONLY with valid JSON, no other text:
-{"score": <0-100>, "reasoning": "<2-3 sentences referencing real features of this shoe and why it scored this way>"}`
-
-  try {
-    const response = await fetch(GROQ_API_URL, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 200,
-        temperature: 0.2,  // low = consistent scores, slight variation in wording
-      }),
-    })
-
-    if (!response.ok) {
-      console.error('Groq error:', await response.text())
-      return res.status(500).json({ error: 'AI service error' })
-    }
-
-    const data = await response.json()
-    const raw = data.choices?.[0]?.message?.content?.trim() ?? ''
-    const clean = raw.replace(/```json|```/g, '').trim()
-
-    let parsed: { score: number; reasoning: string }
-    try {
-      parsed = JSON.parse(clean)
-    } catch {
-      const scoreMatch   = raw.match(/"score"\s*:\s*(\d+)/)
-      const reasonMatch  = raw.match(/"reasoning"\s*:\s*"([^"]+)"/)
-      if (scoreMatch && reasonMatch) {
-        parsed = { score: Number(scoreMatch[1]), reasoning: reasonMatch[1] }
-      } else {
-        console.error('Failed to parse:', raw)
-        return res.status(500).json({ error: 'Failed to parse AI response' })
-      }
-    }
-
-    return res.status(200).json({
-      score: Math.min(100, Math.max(0, Math.round(parsed.score))),
-      reasoning: parsed.reasoning,
-    })
-
-  } catch (err) {
-    console.error('Reasoning error:', err)
-    return res.status(500).json({ error: 'Failed to generate reasoning' })
-  }
+  return res.status(400).json({ error: 'Invalid mode' })
 }
