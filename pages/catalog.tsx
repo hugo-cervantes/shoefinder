@@ -62,6 +62,7 @@ export default function CatalogPage() {
   const [filterOpen, setFilterOpen] = useState(false)
   const [sortOpen, setSortOpen]     = useState(false)
   const [sort, setSort]             = useState<SortOption>('default')
+  const [compareIds, setCompareIds]   = useState<number[]>([])
 
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([])
   const [selectedWidths, setSelectedWidths]           = useState<string[]>([])
@@ -114,6 +115,14 @@ export default function CatalogPage() {
     setSelectedCategoryIds([]); setSelectedWidths([])
     setSearchQuery(""); setPriceRange([PRICE_MIN, PRICE_MAX])
     setFilterOpen(false)
+  }
+
+  const toggleCompare = (id: number) => {
+    setCompareIds(prev => {
+      if (prev.includes(id)) return prev.filter(x => x !== id)
+      if (prev.length >= 3) return [...prev.slice(1), id]  // replace oldest
+      return [...prev, id]
+    })
   }
 
   const activeFilterCount =
@@ -291,7 +300,8 @@ export default function CatalogPage() {
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
           {sortedShoes.map(shoe => (
             <div key={shoe.id}
-              className="group bg-white rounded-2xl overflow-hidden transition hover:shadow-xl border border-gray-100 shadow-sm">
+              className={`group bg-white rounded-2xl overflow-hidden transition hover:shadow-xl border shadow-sm
+                ${compareIds.includes(shoe.id) ? 'border-black ring-2 ring-black' : 'border-gray-100'}`}>
               <Link href={`/shoes/${shoe.id}`}>
                 <div className="aspect-square bg-gray-100 flex items-center justify-center overflow-hidden">
                   <img src={shoe.image_url} alt={shoe.name}
@@ -316,15 +326,84 @@ export default function CatalogPage() {
                 </div>
                 <div className="flex justify-between items-center mt-3">
                   <span className="font-bold text-lg">${shoe.price}</span>
-                  <Link href={`/shoes/${shoe.id}`}>
-                    <button className="text-sm bg-black text-white px-3 py-1 rounded hover:bg-gray-800">View</button>
-                  </Link>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => toggleCompare(shoe.id)}
+                      title={compareIds.includes(shoe.id) ? "Remove from compare" : "Add to compare"}
+                      className={`text-xs px-2.5 py-1 rounded border transition font-medium
+                        ${compareIds.includes(shoe.id)
+                          ? 'bg-black text-white border-black'
+                          : 'bg-white text-gray-500 border-gray-200 hover:border-black hover:text-black'
+                        }`}>
+                      {compareIds.includes(shoe.id) ? 'Added' : '+ Compare'}
+                    </button>
+                    <Link href={`/shoes/${shoe.id}`}>
+                      <button className="text-sm bg-black text-white px-3 py-1 rounded hover:bg-gray-800">View</button>
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
           ))}
         </div>
       </main>
+
+      {/* Sticky compare bar */}
+      {compareIds.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-2xl
+                        px-6 py-4 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <p className="text-sm font-semibold text-gray-700 shrink-0">
+              Comparing {compareIds.length}/3
+            </p>
+            <div className="flex items-center gap-2">
+              {compareIds.map(id => {
+                const shoe = sortedShoes.find(s => s.id === id)
+                if (!shoe) return null
+                return (
+                  <div key={id} className="relative">
+                    <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden border border-gray-200">
+                      <img src={shoe.image_url} alt={shoe.name}
+                        className="w-full h-full object-contain p-1" />
+                    </div>
+                    <button
+                      onClick={() => toggleCompare(id)}
+                      className="absolute -top-1 -right-1 w-4 h-4 bg-gray-800 text-white rounded-full
+                                 flex items-center justify-center text-xs leading-none hover:bg-red-500 transition">
+                      x
+                    </button>
+                  </div>
+                )
+              })}
+              {/* Empty slots */}
+              {Array.from({ length: 3 - compareIds.length }).map((_, i) => (
+                <div key={i} className="w-12 h-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200
+                                        flex items-center justify-center text-gray-300 text-xs">
+                  +
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => setCompareIds([])}
+              className="text-sm text-gray-400 hover:text-black transition">
+              Clear
+            </button>
+            <Link
+              href={compareIds.length >= 2 ? `/compare?ids=${compareIds.join(',')}` : '#'}
+              className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition
+                ${compareIds.length >= 2
+                  ? 'bg-black text-white hover:bg-gray-800'
+                  : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                }`}>
+              Compare Now {compareIds.length >= 2 ? '' : `(need ${2 - compareIds.length} more)`}
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom padding when bar is visible */}
+      {compareIds.length > 0 && <div className="h-24" />}
     </div>
   )
 }
