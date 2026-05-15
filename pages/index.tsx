@@ -141,7 +141,28 @@ export default function Home() {
             return shoe ? { ...shoe, wishlist_count: counts[id] } : null;
           })
           .filter(Boolean) as TrendingShoe[];
-        setTrending(sorted);
+
+        // Pad to 6 with random shoes if not enough wishlisted ones
+        if (sorted.length < 6) {
+          const usedIds = new Set(sorted.map(s => s.id));
+          const { data: extras } = await supabase
+            .from('shoe')
+            .select('id, name, model_line, price, image_url')
+            .not('id', 'in', `(${[...usedIds].join(',')})`)
+            .limit(50);
+
+          if (extras) {
+            // Shuffle and pick enough to fill
+            const shuffled = extras.sort(() => Math.random() - 0.5);
+            const needed = 6 - sorted.length;
+            const padding = shuffled.slice(0, needed).map(s => ({ ...s, wishlist_count: 0 }));
+            setTrending([...sorted, ...padding]);
+          } else {
+            setTrending(sorted);
+          }
+        } else {
+          setTrending(sorted);
+        }
       }
     };
 
@@ -330,17 +351,7 @@ export default function Home() {
                 <div className="p-3">
                   <p className="text-xs text-gray-400 truncate">{shoe.model_line}</p>
                   <p className="text-sm font-semibold text-gray-900 truncate mt-0.5">{shoe.name}</p>
-                  <div className="flex items-center justify-between mt-1.5">
-                    <p className="text-sm font-bold">${shoe.price}</p>
-                    {shoe.wishlist_count > 0 && (
-                      <span className="text-xs text-gray-400 flex items-center gap-0.5">
-                        <svg className="w-3 h-3 text-red-400" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-                        </svg>
-                        {shoe.wishlist_count}
-                      </span>
-                    )}
-                  </div>
+                  <p className="text-sm font-bold mt-1.5">${shoe.price}</p>
                 </div>
               </Link>
             ))}
