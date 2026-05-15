@@ -16,7 +16,9 @@ interface Shoe {
 
 interface UserProfile {
   shoe_width: string;
+  shoe_widths?: string[];
   category_id: number;
+  category_ids?: number[];
   gender: string;
   brand_sizes?: Record<string, number>;
 }
@@ -37,7 +39,7 @@ export default function Recommendations() {
   // AI reasoning state — keyed by shoe id
   const [reasonings, setReasonings]   = useState<Record<number, string>>({})
   const [loadingAI, setLoadingAI]     = useState<Record<number, boolean>>({})
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
+  const [expandedId, setExpandedId]   = useState<number | null>(null)
 
   // ── Load recommendations ──────────────────────────────────────────────
   useEffect(() => {
@@ -49,7 +51,7 @@ export default function Recommendations() {
 
       const { data: profileData, error: profileError } = await supabase
         .from("user_profile")
-        .select("shoe_width, category_id, gender, brand_sizes")
+        .select("shoe_width, shoe_widths, category_id, category_ids, gender, brand_sizes")
         .eq("id", user.id)
         .single()
 
@@ -61,11 +63,15 @@ export default function Recommendations() {
 
       setProfile(profileData)
 
+      // Use multi-select arrays if available, fall back to single values
+      const widths     = profileData.shoe_widths?.length    ? profileData.shoe_widths    : [profileData.shoe_width]
+      const categories = profileData.category_ids?.length   ? profileData.category_ids   : [profileData.category_id]
+
       const { data: shoeData, error: shoeError } = await supabase
         .from("shoe")
         .select("*")
-        .eq("width", profileData.shoe_width)
-        .eq("category_id", profileData.category_id)
+        .in("width", widths)
+        .in("category_id", categories)
 
       if (shoeError) { console.error(shoeError); setLoading(false); return }
 
@@ -81,6 +87,7 @@ export default function Recommendations() {
     if (reasonings[shoe.id] || loadingAI[shoe.id] || !profile) return
 
     setLoadingAI(prev => ({ ...prev, [shoe.id]: true }))
+    setExpandedId(shoe.id)
 
     try {
       const response = await fetch('/api/shoe-reasoning', {
@@ -102,13 +109,10 @@ export default function Recommendations() {
   }
 
   const toggleReasoning = (shoe: Shoe) => {
-    if (expandedIds.has(shoe.id)) {
-      // Close it
-      setExpandedIds(prev => { const n = new Set(prev); n.delete(shoe.id); return n })
+    if (expandedId === shoe.id) {
+      setExpandedId(null)
     } else {
-      // Open it — fetch if not cached yet
       fetchReasoning(shoe)
-      setExpandedIds(prev => new Set(prev).add(shoe.id))
     }
   }
 
@@ -219,14 +223,14 @@ export default function Recommendations() {
                       Why this shoe?
                     </span>
                     <svg
-                      className={`w-3.5 h-3.5 transition-transform ${expandedIds.has(shoe.id) ? 'rotate-180' : ''}`}
+                      className={`w-3.5 h-3.5 transition-transform ${expandedId === shoe.id ? 'rotate-180' : ''}`}
                       fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                       <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </button>
 
                   {/* AI reasoning panel */}
-                  {expandedIds.has(shoe.id) && (
+                  {expandedId === shoe.id && (
                     <div className="mt-2 rounded-lg bg-purple-50 border border-purple-100 px-3 py-3">
                       {loadingAI[shoe.id] ? (
                         <div className="flex items-center gap-2 text-xs text-purple-400">
