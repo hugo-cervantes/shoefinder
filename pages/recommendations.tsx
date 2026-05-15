@@ -79,6 +79,9 @@ export default function Recommendations() {
   const [reasonings, setReasonings]   = useState<Record<number, string>>({})
   const [loadingAI, setLoadingAI]     = useState<Record<number, boolean>>({})
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
+  const [showHint, setShowHint]         = useState(false)  // false until we check DB
+  const [dontShowAgain, setDontShowAgain] = useState(false)
+  const [hintChecked, setHintChecked]     = useState(false)  // has DB check completed
 
   // ── Load + score + sort shoes ─────────────────────────────────────────
   useEffect(() => {
@@ -90,7 +93,7 @@ export default function Recommendations() {
 
       const { data: profileData, error: profileError } = await supabase
         .from("user_profile")
-        .select("shoe_width, shoe_widths, category_id, category_ids, gender, brand_sizes")
+        .select("shoe_width, shoe_widths, category_id, category_ids, gender, brand_sizes, hide_recommendation_hint")
         .eq("id", user.id)
         .single()
 
@@ -101,6 +104,9 @@ export default function Recommendations() {
       }
 
       setProfile(profileData)
+      // Only show hint if user hasn't dismissed it permanently
+      if (!profileData.hide_recommendation_hint) setShowHint(true)
+      setHintChecked(true)
 
       // Fetch shoes matching any of their widths + categories
       const widths     = profileData.shoe_widths?.length    ? profileData.shoe_widths    : [profileData.shoe_width]
@@ -124,6 +130,44 @@ export default function Recommendations() {
     load()
   }, [])
 
+  // ── Dismiss hint (optionally permanently) ────────────────────────────
+  const dismissHint = async (permanent: boolean) => {
+    setShowHint(false)
+    if (permanent) {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        await supabase.from('user_profile')
+          .update({ hide_recommendation_hint: true })
+          .eq('id', user.id)
+      }
+    }
+  }
+
+  // ── Auto-score top 10 shoes on load ──────────────────────────────────
+  useEffect(() => {
+    if (!profile || shoes.length === 0) return
+
+    shoes.slice(0, 10).forEach(shoe => {
+      if (shoe.fitScore !== null) return
+
+      fetch('/api/shoe-reasoning', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shoe, userProfile: profile, mode: 'score' }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          if (data.score != null) {
+            setShoes(prev =>
+              [...prev.map(s => s.id === shoe.id ? { ...s, fitScore: data.score } : s)]
+                .sort((a, b) => (b.fitScore ?? -1) - (a.fitScore ?? -1))
+            )
+          }
+        })
+        .catch(err => console.error('Score fetch error:', err))
+    })
+  }, [shoes.length, profile])
+
   // ── Fetch reasoning only when user clicks ────────────────────────────
   const toggleExpanded = async (shoe: ScoredShoe) => {
     const id = shoe.id
@@ -144,16 +188,9 @@ export default function Recommendations() {
       const response = await fetch('/api/shoe-reasoning', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shoe, userProfile: profile }),
+        body: JSON.stringify({ shoe, userProfile: profile, mode: 'full' }),
       })
       const data = await response.json()
-      // Update the shoe's fitScore with the AI-assigned score
-      if (data.score != null) {
-        setShoes(prev =>
-          [...prev.map(s => s.id === id ? { ...s, fitScore: data.score } : s)]
-            .sort((a, b) => (b.fitScore ?? -1) - (a.fitScore ?? -1))
-        )
-      }
       setReasonings(prev => ({
         ...prev,
         [id]: data.reasoning || 'Unable to load reasoning right now.'
@@ -208,6 +245,131 @@ export default function Recommendations() {
           </div>
         )}
 
+        {/* ── Zelda-style hint modal ── */}
+        {showHint && !loading && shoes.length > 0 && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center"
+               onClick={() => dismissHint(dontShowAgain)}>
+            {/* Blurred backdrop */}
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+
+            {/* Hint card */}
+            <div className="relative z-10 max-w-sm w-full mx-4"
+                 onClick={e => e.stopPropagation()}>
+              {/* Zelda-style border frame */}
+              <div className="relative bg-slate-900/95 border-2 border-amber-400/80
+                              rounded-2xl p-6 shadow-2xl shadow-amber-900/30">
+                {/* Corner decorations */}
+                <div className="absolute top-1.5 left-1.5 w-3 h-3 border-t-2 border-l-2 border-amber-400/60 rounded-tl-lg" />
+                <div className="absolute top-1.5 right-1.5 w-3 h-3 border-t-2 border-r-2 border-amber-400/60 rounded-tr-lg" />
+                <div className="absolute bottom-1.5 left-1.5 w-3 h-3 border-b-2 border-l-2 border-amber-400/60 rounded-bl-lg" />
+                <div className="absolute bottom-1.5 right-1.5 w-3 h-3 border-b-2 border-r-2 border-amber-400/60 rounded-br-lg" />
+
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-7 h-7 rounded-full bg-amber-400 flex items-center justify-center shrink-0">
+                    <svg className="w-4 h-4 text-slate-900" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
+                    </svg>
+                  </div>
+                  <p className="text-amber-400 font-bold text-sm tracking-wider uppercase">
+                    SoleMate AI — How It Works
+                  </p>
+                </div>
+
+                {/* Body text */}
+                <div className="space-y-3 text-slate-300 text-sm leading-relaxed">
+                  <p>
+                    Your top <span className="text-amber-400 font-semibold">10 shoes</span> are
+                    automatically scored by AI using real knowledge about each model.
+                    Scores appear as they load — shoes re-rank as results come in.
+                  </p>
+                  <p>
+                    Shoes beyond the top 10 show{" "}
+                    <span className="inline-flex items-center gap-1 bg-slate-700 text-amber-300
+                                     px-2 py-0.5 rounded-full text-xs font-medium border border-amber-400/30">
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 8v4M12 16h.01" strokeLinecap="round"/>
+                      </svg>
+                      Click to score
+                    </span>{" "}
+                    — tap <span className="text-purple-400 font-semibold">Why this score?</span> on
+                    any card to get their score and AI reasoning.
+                  </p>
+                </div>
+
+                {/* Divider */}
+                <div className="my-4 border-t border-amber-400/20" />
+
+                {/* Mock shoe card reference */}
+                <div className="bg-slate-800/80 rounded-xl p-3 border border-slate-700 mb-4">
+                  <p className="text-xs text-slate-500 mb-2 uppercase tracking-wider">What to look for</p>
+                  <div className="flex items-center gap-3">
+                    {/* Mini score ring mockup */}
+                    <div className="relative w-10 h-10 shrink-0">
+                      <svg className="-rotate-90 absolute inset-0" width="40" height="40" viewBox="0 0 40 40">
+                        <circle cx="20" cy="20" r="14" fill="none" stroke="#334155" strokeWidth="3"/>
+                        <circle cx="20" cy="20" r="14" fill="none" stroke="#f59e0b" strokeWidth="3"
+                          strokeDasharray="52 88" strokeLinecap="round"/>
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-amber-400">74</span>
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs text-amber-400 font-medium">Great fit</p>
+                      <p className="text-xs text-slate-400">Score ring fills as AI grades each shoe</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="flex-1 flex items-center gap-1.5 border border-slate-600
+                                    rounded-lg px-2 py-1.5 bg-slate-700/50">
+                      <svg className="w-3 h-3 text-purple-400" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
+                      </svg>
+                      <span className="text-xs text-slate-300">Why this score?</span>
+                    </div>
+                    <span className="text-xs text-slate-500">← tap this</span>
+                  </div>
+                </div>
+
+                {/* Don't show again checkbox */}
+                <label className="flex items-center gap-2 cursor-pointer mb-3 group">
+                  <div
+                    onClick={() => setDontShowAgain(p => !p)}
+                    className={`w-4 h-4 rounded border-2 flex items-center justify-center transition shrink-0
+                      ${dontShowAgain
+                        ? 'bg-amber-400 border-amber-400'
+                        : 'border-slate-500 group-hover:border-amber-400/60'
+                      }`}
+                  >
+                    {dontShowAgain && (
+                      <svg className="w-2.5 h-2.5 text-slate-900" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                        <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  <span className="text-xs text-slate-400 group-hover:text-slate-300 transition">
+                    Don't show this again
+                  </span>
+                </label>
+
+                {/* Dismiss */}
+                <button
+                  onClick={() => dismissHint(dontShowAgain)}
+                  className="w-full py-2 bg-amber-400 hover:bg-amber-300 text-slate-900
+                             font-bold text-sm rounded-xl transition tracking-wide"
+                >
+                  Got it — show my recommendations
+                </button>
+
+                {/* Press any key hint */}
+                <p className="text-center text-xs text-slate-600 mt-2">
+                  or click anywhere to dismiss
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {!loading && shoes.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
             {shoes.map((shoe, index) => (
@@ -221,6 +383,17 @@ export default function Recommendations() {
                     <div className={`absolute top-2 left-2 z-10 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white
                       ${index === 0 ? 'bg-yellow-400' : index === 1 ? 'bg-gray-400' : 'bg-amber-600'}`}>
                       {index + 1}
+                    </div>
+                  )}
+                  {/* Unscored indicator for shoes beyond top 10 */}
+                  {shoe.fitScore === null && index >= 10 && (
+                    <div className="absolute top-2 right-2 z-10 flex items-center gap-1
+                                    bg-slate-800/80 backdrop-blur-sm text-amber-400 text-xs
+                                    px-2 py-0.5 rounded-full border border-amber-400/30">
+                      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01" strokeLinecap="round"/>
+                      </svg>
+                      Click to score
                     </div>
                   )}
                   <Link href={`/shoes/${shoe.id}`}>
