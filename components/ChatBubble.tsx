@@ -1,0 +1,300 @@
+'use client'
+import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
+import { supabase } from '../lib/supabase'
+
+interface Message {
+  role: 'user' | 'assistant'
+  content: string
+  catalogMatches?: CatalogShoe[]
+  externalShoes?: ExternalShoe[]
+}
+
+interface CatalogShoe {
+  id: number
+  name: string
+  model_line: string
+  price: number
+  width: string
+  category_id: number
+  gender: string
+  image_url: string
+}
+
+interface ExternalShoe {
+  name: string
+  brand: string
+  reason: string
+  url: string
+  price_range: string
+}
+
+const WELCOME: Message = {
+  role: 'assistant',
+  content: "Hey! I'm your SoleMate AI assistant 👟 Tell me what you're looking for — activity, budget, fit issues, style — and I'll find your perfect shoe.",
+}
+
+export default function ChatBubble() {
+  const [open, setOpen]         = useState(false)
+  const [user, setUser]         = useState<any>(null)
+  const [messages, setMessages] = useState<Message[]>([WELCOME])
+  const [input, setInput]       = useState('')
+  const [loading, setLoading]   = useState(false)
+  const [nudge, setNudge]       = useState(false)   // little bounce nudge
+  const bottomRef               = useRef<HTMLDivElement>(null)
+  const inputRef                = useRef<HTMLTextAreaElement>(null)
+
+  // ── Auth check ────────────────────────────────────────────────────────
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null))
+    const { data } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUser(session?.user ?? null)
+    })
+    return () => data.subscription.unsubscribe()
+  }, [])
+
+  // ── Nudge animation after 8 seconds ──────────────────────────────────
+  useEffect(() => {
+    if (!user) return
+    const t = setTimeout(() => setNudge(true), 8000)
+    return () => clearTimeout(t)
+  }, [user])
+
+  // ── Scroll to bottom on new message ──────────────────────────────────
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, loading])
+
+  // Don't render for logged-out users
+  if (!user) return null
+
+  const sendMessage = async () => {
+    const text = input.trim()
+    if (!text || loading) return
+
+    const userMsg: Message = { role: 'user', content: text }
+    const newMessages = [...messages, userMsg]
+    setMessages(newMessages)
+    setInput('')
+    setLoading(true)
+
+    // Only send role+content to API (not the extra fields)
+    const apiMessages = newMessages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .map(m => ({ role: m.role, content: m.content }))
+
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: apiMessages, userId: user.id }),
+      })
+      const data = await res.json()
+
+      const assistantMsg: Message = {
+        role: 'assistant',
+        content: data.message ?? 'Sorry, something went wrong.',
+        catalogMatches: data.catalogMatches ?? [],
+        externalShoes: data.externalShoes ?? [],
+      }
+      setMessages(prev => [...prev, assistantMsg])
+    } catch {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Sorry, I had trouble connecting. Try again in a moment.',
+      }])
+    }
+
+    setLoading(false)
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
+    }
+  }
+
+  const clearChat = () => {
+    setMessages([WELCOME])
+    setInput('')
+  }
+
+  return (
+    <>
+      {/* ── Floating bubble button ── */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+
+        {/* Tooltip nudge */}
+        {nudge && !open && (
+          <div className="bg-gray-900 text-white text-xs px-3 py-2 rounded-xl shadow-lg
+                          animate-bounce max-w-[160px] text-center">
+            Need help finding a shoe? 👟
+            <div className="absolute -bottom-1 right-5 w-2 h-2 bg-gray-900 rotate-45" />
+          </div>
+        )}
+
+        <button
+          onClick={() => { setOpen(o => !o); setNudge(false) }}
+          className={`w-14 h-14 rounded-full shadow-xl flex items-center justify-center
+                      transition-all duration-300 hover:scale-110
+                      ${open ? 'bg-gray-800 rotate-0' : 'bg-black'}`}
+          aria-label="Open AI chat"
+        >
+          {open ? (
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+              <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          )}
+        </button>
+      </div>
+
+      {/* ── Chat window ── */}
+      {open && (
+        <div className="fixed bottom-24 right-6 z-50 w-[380px] max-w-[calc(100vw-3rem)]
+                        bg-white rounded-2xl shadow-2xl border border-gray-200
+                        flex flex-col overflow-hidden"
+             style={{ height: '520px' }}>
+
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 bg-black text-white shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
+                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold leading-none">SoleMate AI</p>
+                <p className="text-xs text-white/60 mt-0.5">Shoe expert</p>
+              </div>
+            </div>
+            <button onClick={clearChat}
+              className="text-white/50 hover:text-white text-xs transition">
+              Clear
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] space-y-2`}>
+                  {/* Message bubble */}
+                  <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed
+                    ${msg.role === 'user'
+                      ? 'bg-black text-white rounded-br-sm'
+                      : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                    }`}>
+                    {msg.content}
+                  </div>
+
+                  {/* Catalog shoe cards */}
+                  {msg.catalogMatches && msg.catalogMatches.length > 0 && (
+                    <div className="space-y-2">
+                      {msg.catalogMatches.map(shoe => (
+                        <Link key={shoe.id} href={`/shoes/${shoe.id}`}
+                          onClick={() => setOpen(false)}
+                          className="flex items-center gap-3 bg-white border border-gray-200
+                                     rounded-xl p-2.5 hover:border-black hover:shadow-sm
+                                     transition cursor-pointer">
+                          <div className="w-14 h-14 bg-gray-100 rounded-lg overflow-hidden shrink-0 flex items-center justify-center">
+                            <img src={shoe.image_url} alt={shoe.name}
+                              className="w-full h-full object-contain p-1" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-400 truncate">{shoe.model_line}</p>
+                            <p className="text-sm font-semibold text-gray-900 truncate">{shoe.name}</p>
+                            <p className="text-xs font-bold text-gray-800 mt-0.5">${shoe.price}</p>
+                          </div>
+                          <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* External shoe suggestions */}
+                  {msg.externalShoes && msg.externalShoes.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-400 px-1">Also worth checking out:</p>
+                      {msg.externalShoes.map((shoe, idx) => (
+                        <a key={idx} href={shoe.url} target="_blank" rel="noopener noreferrer"
+                          className="flex items-start gap-3 bg-blue-50 border border-blue-100
+                                     rounded-xl p-2.5 hover:border-blue-400 hover:shadow-sm
+                                     transition cursor-pointer">
+                          <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center shrink-0 mt-0.5">
+                            <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                              <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-sm font-semibold text-gray-900 truncate">{shoe.name}</p>
+                              <span className="text-xs bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded-full shrink-0">{shoe.brand}</span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{shoe.reason}</p>
+                            <p className="text-xs font-bold text-gray-700 mt-1">{shoe.price_range}</p>
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Loading indicator */}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 rounded-2xl rounded-bl-sm px-4 py-3 flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
+              </div>
+            )}
+
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input */}
+          <div className="px-3 pb-3 pt-2 border-t border-gray-100 shrink-0">
+            <div className="flex items-end gap-2 bg-gray-50 rounded-xl border border-gray-200
+                            focus-within:border-black focus-within:bg-white transition px-3 py-2">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Ask me anything about shoes..."
+                rows={1}
+                className="flex-1 text-sm bg-transparent resize-none focus:outline-none
+                           max-h-24 leading-relaxed"
+                style={{ minHeight: '24px' }}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={!input.trim() || loading}
+                className="w-7 h-7 bg-black rounded-lg flex items-center justify-center
+                           hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed
+                           transition shrink-0 mb-0.5"
+              >
+                <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                  <path d="M12 19V5M5 12l7-7 7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+            <p className="text-center text-xs text-gray-300 mt-1.5">Press Enter to send · Shift+Enter for new line</p>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
