@@ -142,19 +142,19 @@ export default function ShoePage() {
     loadUserData();
   }, [router.isReady, id]);
 
-  // -- Fetch personal reasoning once BOTH shoe AND userId are ready ------
+  // -- Fetch personal reasoning when both shoe and userId are ready ------
   useEffect(() => {
     if (!shoe || !userId) return
     setPersonalLoading(true)
     fetch('/api/shoe-description', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shoeId: shoe.id, userId, mode: 'personal' }),
+      body: JSON.stringify({ shoeId: shoe.id, userId: userId, mode: 'personal' }),
     })
-      .then(r => r.json())
-      .then(data => { if (data.reasoning) setPersonalDesc(data.reasoning) })
-      .catch(() => {})
-      .finally(() => setPersonalLoading(false))
+      .then(function(r) { return r.json() })
+      .then(function(data) { if (data.reasoning) setPersonalDesc(data.reasoning) })
+      .catch(function() {})
+      .finally(function() { setPersonalLoading(false) })
   }, [shoe, userId])
 
   // -- Brand size detection ----------------------------------------------
@@ -348,19 +348,15 @@ export default function ShoePage() {
           </div>
         </div>
 
-        {/* -- AI Descriptions -- */}
+        {/* -- Shoe description + personal fit -- */}
         {(shoe.ai_description || userId) && (
           <div className="mt-10 space-y-5">
-
-            {/* General description - read directly from DB, never changes */}
             {shoe.ai_description && (
               <div>
                 <h2 className="text-lg font-semibold mb-2">About this shoe</h2>
                 <p className="text-gray-600 text-sm leading-relaxed">{shoe.ai_description}</p>
               </div>
             )}
-
-            {/* Personal reasoning (logged in) */}
             {userId && (
               <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-4">
                 <div className="flex items-center gap-1.5 mb-2">
@@ -379,8 +375,6 @@ export default function ShoePage() {
                 )}
               </div>
             )}
-
-            {/* Logged out prompt */}
             {!userId && shoe.ai_description && (
               <Link href={"/login?redirect=/shoes/" + shoe.id}
                 className="flex items-center gap-2 text-xs text-gray-400 hover:text-black transition group">
@@ -390,7 +384,6 @@ export default function ShoePage() {
                 <span><span className="text-purple-500 font-medium group-hover:underline">Sign in</span> to see a personal fit analysis for this shoe</span>
               </Link>
             )}
-
           </div>
         )}
 
