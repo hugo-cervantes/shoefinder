@@ -15,6 +15,7 @@ interface Shoe {
   external_url: string;
   category_id: number;
   width: string;
+  ai_description?: string;
 }
 
 interface Review {
@@ -49,10 +50,8 @@ export default function ShoePage() {
   const [userId, setUserId]                 = useState<string | null>(null);
   const [heartHovered, setHeartHovered]     = useState(false);
 
-  // AI descriptions
-  const [generalDesc, setGeneralDesc]     = useState<string | null>(null)
-  const [personalDesc, setPersonalDesc]   = useState<string | null>(null)
-  const [descLoading, setDescLoading]     = useState(false)
+  // Personal fit reasoning
+  const [personalDesc, setPersonalDesc]     = useState<string | null>(null)
   const [personalLoading, setPersonalLoading] = useState(false)
 
   // Brand size
@@ -63,11 +62,11 @@ export default function ShoePage() {
   // You might also like
   const [similarShoes, setSimilarShoes] = useState<Shoe[]>([]);
 
-  // Review votes — track which reviews this user has voted on
+  // Review votes - track which reviews this user has voted on
   const [userVotes, setUserVotes] = useState<Record<string, boolean>>({});
   const [votingId, setVotingId]   = useState<string | null>(null);
 
-  // ── Fetch shoe ────────────────────────────────────────────────────────
+  // -- Fetch shoe --------------------------------------------------------
   useEffect(() => {
     if (!router.isReady || !id) return;
     const numericId = Number(id);
@@ -84,7 +83,7 @@ export default function ShoePage() {
     fetchShoe();
   }, [router.isReady, id]);
 
-  // ── Fetch reviews (sorted by helpfulness) ────────────────────────────
+  // -- Fetch reviews (sorted by helpfulness) ----------------------------
   const fetchReviews = async () => {
     if (!router.isReady || !id) return;
     const numericId = Number(id);
@@ -98,7 +97,7 @@ export default function ShoePage() {
 
   useEffect(() => { fetchReviews(); }, [router.isReady, id]);
 
-  // ── Fetch similar shoes ───────────────────────────────────────────────
+  // -- Fetch similar shoes -----------------------------------------------
   useEffect(() => {
     if (!shoe) return;
     supabase
@@ -110,7 +109,7 @@ export default function ShoePage() {
       .then(({ data }) => setSimilarShoes(data || []));
   }, [shoe]);
 
-  // ── Check wishlist + load user data ───────────────────────────────────
+  // -- Check wishlist + load user data -----------------------------------
   useEffect(() => {
     if (!router.isReady || !id) return;
     const numericId = Number(id);
@@ -143,22 +142,7 @@ export default function ShoePage() {
     loadUserData();
   }, [router.isReady, id]);
 
-  // ── Fetch general description once shoe loads ────────────────────────
-  useEffect(() => {
-    if (!shoe) return
-    setDescLoading(true)
-    fetch('/api/shoe-description', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ shoeId: shoe.id, mode: 'general' }),
-    })
-      .then(r => r.json())
-      .then(data => { if (data.description) setGeneralDesc(data.description) })
-      .catch(() => {})
-      .finally(() => setDescLoading(false))
-  }, [shoe])
-
-  // ── Fetch personal reasoning once BOTH shoe AND userId are ready ──────
+  // -- Fetch personal reasoning once BOTH shoe AND userId are ready ------
   useEffect(() => {
     if (!shoe || !userId) return
     setPersonalLoading(true)
@@ -173,7 +157,7 @@ export default function ShoePage() {
       .finally(() => setPersonalLoading(false))
   }, [shoe, userId])
 
-  // ── Brand size detection ──────────────────────────────────────────────
+  // -- Brand size detection ----------------------------------------------
   useEffect(() => {
     if (!shoe?.external_url || !brandSizes) return;
     const brand = detectBrand(shoe.external_url);
@@ -184,7 +168,7 @@ export default function ShoePage() {
     setUserSizeForBrand(conversions[brand]);
   }, [shoe, brandSizes]);
 
-  // ── Toggle wishlist ───────────────────────────────────────────────────
+  // -- Toggle wishlist ---------------------------------------------------
   const toggleWishlist = async () => {
     if (!userId) { router.push("/login"); return; }
     setWishlistLoading(true);
@@ -199,7 +183,7 @@ export default function ShoePage() {
     setWishlistLoading(false);
   };
 
-  // ── Vote on review ────────────────────────────────────────────────────
+  // -- Vote on review ----------------------------------------------------
   const handleVote = async (reviewId: string, vote: boolean) => {
     if (!userId) { router.push("/login"); return; }
     if (votingId) return;
@@ -217,7 +201,7 @@ export default function ShoePage() {
       setUserVotes(prev => { const n = { ...prev }; delete n[reviewId]; return n; });
     } else {
       if (existing !== undefined) {
-        // Switch vote — remove old
+        // Switch vote - remove old
         await supabase.from("review_votes")
           .delete().eq("review_id", reviewId).eq("user_id", userId);
         const r = reviews.find(r => r.id === reviewId)!;
@@ -241,7 +225,7 @@ export default function ShoePage() {
     setVotingId(null);
   };
 
-  // ── Submit review ─────────────────────────────────────────────────────
+  // -- Submit review -----------------------------------------------------
   async function submitReview() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) { alert("You must be logged in to leave a review."); return; }
@@ -267,7 +251,7 @@ export default function ShoePage() {
     <div className="min-h-screen bg-white"><Navbar />
       <div className="text-center mt-20 space-y-3">
         <p className="text-gray-500">{error ?? "Shoe not found."}</p>
-        <Link href="/catalog" className="text-sm text-black underline">← Back to catalog</Link>
+        <Link href="/catalog" className="text-sm text-black underline"><- Back to catalog</Link>
       </div>
     </div>
   );
@@ -282,7 +266,7 @@ export default function ShoePage() {
       <Navbar />
       <div className="px-6 py-10 max-w-5xl mx-auto">
         <Link href="/catalog" className="text-sm text-gray-500 hover:text-black transition">
-          ← Back to catalog
+          <- Back to catalog
         </Link>
 
         <div className="grid md:grid-cols-2 gap-10 mt-6">
@@ -324,7 +308,7 @@ export default function ShoePage() {
 
             {averageRating && (
               <p className="text-yellow-500 mt-2 text-sm font-medium">
-                ★ {averageRating} / 5{" "}
+                 {averageRating} / 5{" "}
                 <span className="text-gray-400 font-normal">({reviews.length} review{reviews.length !== 1 ? "s" : ""})</span>
               </p>
             )}
@@ -364,23 +348,17 @@ export default function ShoePage() {
           </div>
         </div>
 
-        {/* ── AI Descriptions ── */}
-        {(generalDesc || descLoading) && (
+        {/* -- AI Descriptions -- */}
+        {(shoe.ai_description || userId) && (
           <div className="mt-10 space-y-5">
 
-            {/* General description */}
-            <div>
-              <h2 className="text-lg font-semibold mb-2">About this shoe</h2>
-              {descLoading && !generalDesc ? (
-                <div className="space-y-2 animate-pulse">
-                  <div className="h-3 bg-gray-200 rounded w-full" />
-                  <div className="h-3 bg-gray-200 rounded w-5/6" />
-                  <div className="h-3 bg-gray-200 rounded w-4/6" />
-                </div>
-              ) : (
-                <p className="text-gray-600 text-sm leading-relaxed">{generalDesc}</p>
-              )}
-            </div>
+            {/* General description - read directly from DB, never changes */}
+            {shoe.ai_description && (
+              <div>
+                <h2 className="text-lg font-semibold mb-2">About this shoe</h2>
+                <p className="text-gray-600 text-sm leading-relaxed">{shoe.ai_description}</p>
+              </div>
+            )}
 
             {/* Personal reasoning (logged in) */}
             {userId && (
@@ -402,9 +380,9 @@ export default function ShoePage() {
               </div>
             )}
 
-            {/* Logged out prompt - small, not pushy */}
-            {!userId && generalDesc && (
-              <Link href={`/login?redirect=/shoes/${shoe.id}`}
+            {/* Logged out prompt */}
+            {!userId && shoe.ai_description && (
+              <Link href={"/login?redirect=/shoes/" + shoe.id}
                 className="flex items-center gap-2 text-xs text-gray-400 hover:text-black transition group">
                 <svg className="w-3.5 h-3.5 text-purple-400 shrink-0" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
@@ -416,7 +394,7 @@ export default function ShoePage() {
           </div>
         )}
 
-        {/* ── You might also like ── */}
+        {/* -- You might also like -- */}
         {similarShoes.length > 0 && (
           <div className="mt-14">
             <h2 className="text-xl font-semibold mb-5">You Might Also Like</h2>
@@ -439,7 +417,7 @@ export default function ShoePage() {
           </div>
         )}
 
-        {/* ── Reviews ── */}
+        {/* -- Reviews -- */}
         <div className="mt-14 border-t pt-8">
           <h2 className="text-xl font-semibold mb-6">Reviews</h2>
 
@@ -449,7 +427,7 @@ export default function ShoePage() {
             <div className="flex gap-1 mb-3">
               {[1,2,3,4,5].map(star => (
                 <button key={star} onClick={() => setRating(star)} type="button" className="text-2xl">
-                  <span className={star <= rating ? "text-yellow-400" : "text-gray-300"}>★</span>
+                  <span className={star <= rating ? "text-yellow-400" : "text-gray-300"}></span>
                 </button>
               ))}
             </div>
@@ -464,11 +442,11 @@ export default function ShoePage() {
 
           {/* Review list */}
           <div className="space-y-5">
-            {reviews.length === 0 && <p className="text-gray-400 text-sm">No reviews yet — be the first!</p>}
+            {reviews.length === 0 && <p className="text-gray-400 text-sm">No reviews yet - be the first!</p>}
             {reviews.map(r => (
               <div key={r.id} className="border-b border-gray-100 pb-5">
                 <p className="text-yellow-400 text-sm">
-                  {"★".repeat(r.rating)}<span className="text-gray-300">{"★".repeat(5 - r.rating)}</span>
+                  {"".repeat(r.rating)}<span className="text-gray-300">{"".repeat(5 - r.rating)}</span>
                 </p>
                 <p className="text-gray-700 text-sm mt-1 mb-3">{r.review_text}</p>
 
@@ -483,7 +461,7 @@ export default function ShoePage() {
                         ? "bg-green-50 border-green-300 text-green-600"
                         : "bg-white border-gray-200 text-gray-500 hover:border-green-300 hover:text-green-600"
                       } disabled:opacity-40`}>
-                    👍 <span>{r.helpful_count}</span>
+                     <span>{r.helpful_count}</span>
                   </button>
                   <button
                     onClick={() => handleVote(r.id, false)}
@@ -493,7 +471,7 @@ export default function ShoePage() {
                         ? "bg-red-50 border-red-300 text-red-500"
                         : "bg-white border-gray-200 text-gray-500 hover:border-red-300 hover:text-red-500"
                       } disabled:opacity-40`}>
-                    👎 <span>{r.not_helpful_count}</span>
+                     <span>{r.not_helpful_count}</span>
                   </button>
                 </div>
               </div>
