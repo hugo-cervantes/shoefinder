@@ -143,11 +143,9 @@ export default function ShoePage() {
     loadUserData();
   }, [router.isReady, id]);
 
-  // ── Fetch AI descriptions once shoe loads ────────────────────────────
+  // ── Fetch general description once shoe loads ────────────────────────
   useEffect(() => {
     if (!shoe) return
-
-    // General description (cached on shoe row, same for everyone)
     setDescLoading(true)
     fetch('/api/shoe-description', {
       method: 'POST',
@@ -158,20 +156,21 @@ export default function ShoePage() {
       .then(data => { if (data.description) setGeneralDesc(data.description) })
       .catch(() => {})
       .finally(() => setDescLoading(false))
+  }, [shoe])
 
-    // Personal reasoning (only if logged in)
-    if (userId) {
-      setPersonalLoading(true)
-      fetch('/api/shoe-description', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shoeId: shoe.id, userId, mode: 'personal' }),
-      })
-        .then(r => r.json())
-        .then(data => { if (data.reasoning) setPersonalDesc(data.reasoning) })
-        .catch(() => {})
-        .finally(() => setPersonalLoading(false))
-    }
+  // ── Fetch personal reasoning once BOTH shoe AND userId are ready ──────
+  useEffect(() => {
+    if (!shoe || !userId) return
+    setPersonalLoading(true)
+    fetch('/api/shoe-description', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shoeId: shoe.id, userId, mode: 'personal' }),
+    })
+      .then(r => r.json())
+      .then(data => { if (data.reasoning) setPersonalDesc(data.reasoning) })
+      .catch(() => {})
+      .finally(() => setPersonalLoading(false))
   }, [shoe, userId])
 
   // ── Brand size detection ──────────────────────────────────────────────
