@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter } from 'next/router'
 import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 import Navbar from '../components/Navbar'
@@ -38,6 +38,7 @@ function isValidEmail(email: string): boolean {
 
 export default function Login() {
   const router = useRouter()
+  const redirect = typeof router.query.redirect === 'string' ? router.query.redirect : '/'
 
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
@@ -151,7 +152,7 @@ export default function Login() {
     lastAttemptRef.current = null
     setAttempts(0)
     await supabase.auth.getSession()
-    router.push('/')
+    router.push(redirect)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
