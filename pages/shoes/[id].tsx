@@ -405,7 +405,7 @@ export default function ShoePage() {
 
             {/* Logged out prompt - small, not pushy */}
             {!userId && generalDesc && (
-              <Link href="/login"
+              <Link href={`/login?redirect=/shoes/${shoe.id}`}
                 className="flex items-center gap-2 text-xs text-gray-400 hover:text-black transition group">
                 <svg className="w-3.5 h-3.5 text-purple-400 shrink-0" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/>
