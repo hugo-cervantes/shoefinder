@@ -140,7 +140,7 @@ export default function ChatBubble() {
   return (
     <>
       {/* Floating button */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2">
+      <div className="fixed bottom-6 right-4 md:right-6 z-50 flex flex-col items-end gap-2">
         {nudge && !open && (
           <div className="bg-gray-900 text-white text-xs px-3 py-2 rounded-xl shadow-lg
                           animate-bounce max-w-[160px] text-center relative">
@@ -169,7 +169,7 @@ export default function ChatBubble() {
 
       {/* Chat window */}
       {open && (
-        <div className="fixed bottom-24 right-6 z-50 w-[380px] max-w-[calc(100vw-3rem)]
+        <div className="fixed bottom-24 right-2 md:right-6 z-50 w-[calc(100vw-1rem)] md:w-[380px] max-w-[420px]
                         bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden"
              style={{ height: '520px' }}>
 
