@@ -7,7 +7,7 @@ export default function Document() {
         {/* Tab title */}
         <title>SoleMate</title>
 
-        {/* Favicon — drop favicon.ico and logo.png into your /public folder */}
+        {/* Favicon - drop favicon.ico and logo.png into your /public folder */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/logo.png" type="image/png" />
         <link rel="apple-touch-icon" href="/logo.png" />
