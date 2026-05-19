@@ -31,7 +31,7 @@ const CATEGORY_MAP: Record<number, string> = {
   1: "Running", 2: "Casual", 3: "Sports", 4: "Hiking",
 }
 
-// ── Score helpers (AI-driven) ─────────────────────────────────────────────
+// -- Score helpers (AI-driven) ---------------------------------------------
 function scoreColor(score: number): string {
   if (score >= 9) return '#22c55e'
   if (score >= 7) return '#3b82f6'
@@ -63,7 +63,7 @@ function ScoreRing({ score }: { score: number | null }) {
       </svg>
       {score != null
         ? <span className="text-xs font-bold" style={{ color }}>{score}<span className="text-gray-300 font-normal">/10</span></span>
-        : <span className="text-xs text-gray-300">—</span>
+        : <span className="text-xs text-gray-300">-</span>
       }
     </div>
   )
@@ -75,7 +75,7 @@ export default function Recommendations() {
   const [profile, setProfile]         = useState<UserProfile | null>(null)
   const [notLoggedIn, setNotLoggedIn] = useState(false)
 
-  // AI reasoning — auto-loaded for all shoes
+  // AI reasoning - auto-loaded for all shoes
   const [reasonings, setReasonings]   = useState<Record<number, string>>({})
   const [loadingAI, setLoadingAI]     = useState<Record<number, boolean>>({})
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
@@ -83,7 +83,7 @@ export default function Recommendations() {
   const [dontShowAgain, setDontShowAgain] = useState(false)
   const [hintChecked, setHintChecked]     = useState(false)  // has DB check completed
 
-  // ── Load + score + sort shoes ─────────────────────────────────────────
+  // -- Load + score + sort shoes -----------------------------------------
   useEffect(() => {
     const load = async () => {
       setLoading(true)
@@ -133,7 +133,7 @@ export default function Recommendations() {
       const hasCachedRankings = Object.keys(scoreMap).length >= Math.min(10, shoeData?.length ?? 0)
 
       if (hasCachedRankings) {
-        // Use cached — only show shoes that have a cached score (the top 10)
+        // Use cached - only show shoes that have a cached score (the top 10)
         const scored: ScoredShoe[] = (shoeData || [])
           .filter((shoe: any) => scoreMap[shoe.id] != null)
           .map((shoe: any) => ({ ...shoe, fitScore: scoreMap[shoe.id] }))
@@ -143,7 +143,7 @@ export default function Recommendations() {
         return
       }
 
-      // No cache — send all shoes to AI for ranking
+      // No cache - send all shoes to AI for ranking
       setShoes([])  // clear while AI thinks
       setLoading(true)
 
@@ -187,7 +187,7 @@ export default function Recommendations() {
     load()
   }, [])
 
-  // ── Dismiss hint (optionally permanently) ────────────────────────────
+  // -- Dismiss hint (optionally permanently) ----------------------------
   const dismissHint = async (permanent: boolean) => {
     setShowHint(false)
     if (permanent) {
@@ -202,7 +202,7 @@ export default function Recommendations() {
 
   // Scores are loaded in the main useEffect via AI ranking or cache
 
-  // ── Fetch reasoning only when user clicks ────────────────────────────
+  // -- Fetch reasoning only when user clicks ----------------------------
   const toggleExpanded = async (shoe: ScoredShoe) => {
     const id = shoe.id
 
@@ -253,12 +253,12 @@ export default function Recommendations() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      <main className="max-w-7xl mx-auto px-6 py-10">
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 md:py-10">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Recommended For You</h1>
           {profile && !loading && shoes.length > 0 && (
             <p className="text-gray-500">
-              {shoes.length} shoe{shoes.length !== 1 ? 's' : ''} matched and scored — sorted by best fit.
+              {shoes.length} shoe{shoes.length !== 1 ? 's' : ''} matched and scored - sorted by best fit.
               Click <span className="font-semibold">Why this score?</span> to see the AI reasoning.
             </p>
           )}
@@ -279,7 +279,7 @@ export default function Recommendations() {
           </div>
         )}
 
-        {/* ── Zelda-style hint modal ── */}
+        {/* -- Zelda-style hint modal -- */}
         {showHint && !loading && shoes.length > 0 && (
           <div className="fixed inset-0 z-50 flex items-center justify-center"
                onClick={() => dismissHint(dontShowAgain)}>
@@ -306,7 +306,7 @@ export default function Recommendations() {
                     </svg>
                   </div>
                   <p className="text-amber-400 font-bold text-sm tracking-wider uppercase">
-                    SoleMate AI — How It Works
+                    SoleMate AI - How It Works
                   </p>
                 </div>
 
@@ -315,7 +315,7 @@ export default function Recommendations() {
                   <p>
                     Your top <span className="text-amber-400 font-semibold">10 shoes</span> are
                     automatically scored by AI using real knowledge about each model.
-                    Scores appear as they load — shoes re-rank as results come in.
+                    Scores appear as they load - shoes re-rank as results come in.
                   </p>
                   <p>
                     Shoes beyond the top 10 show{" "}
@@ -327,7 +327,7 @@ export default function Recommendations() {
                       </svg>
                       Click to score
                     </span>{" "}
-                    — tap <span className="text-purple-400 font-semibold">Why this score?</span> on
+                    - tap <span className="text-purple-400 font-semibold">Why this score?</span> on
                     any card to get their score and AI reasoning.
                   </p>
                 </div>
@@ -361,7 +361,7 @@ export default function Recommendations() {
                       </svg>
                       <span className="text-xs text-slate-300">Why this score?</span>
                     </div>
-                    <span className="text-xs text-slate-500">← tap this</span>
+                    <span className="text-xs text-slate-500"><- tap this</span>
                   </div>
                 </div>
 
@@ -392,7 +392,7 @@ export default function Recommendations() {
                   className="w-full py-2 bg-amber-400 hover:bg-amber-300 text-slate-900
                              font-bold text-sm rounded-xl transition tracking-wide"
                 >
-                  Got it — show my recommendations
+                  Got it - show my recommendations
                 </button>
 
                 {/* Press any key hint */}
@@ -405,7 +405,7 @@ export default function Recommendations() {
         )}
 
         {!loading && shoes.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-8">
             {shoes.map((shoe, index) => (
               <div key={shoe.id}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg transition overflow-hidden flex flex-col">
