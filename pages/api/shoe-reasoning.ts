@@ -1,6 +1,6 @@
 // pages/api/shoe-reasoning.ts
-// mode: "rank"    → send all shoes, AI picks best 10 and scores them 1-10
-// mode: "explain" → send one shoe + its score, AI explains why
+// mode: "rank"    -> send all shoes, AI picks best 10 and scores them 1-10
+// mode: "explain" -> send one shoe + its score, AI explains why
 
 import type { NextApiRequest, NextApiResponse } from 'next'
 
@@ -33,7 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     ? Object.entries(userProfile.brand_sizes).map(([b, s]) => `${b}: size ${s}`).join(', ')
     : 'not provided'
 
-  // ── RANK mode: pick best 10 from all shoes and score them 1-10 ────────
+  // -- RANK mode: pick best 10 from all shoes and score them 1-10 --------
   if (mode === 'rank') {
     if (!shoes || !Array.isArray(shoes)) return res.status(400).json({ error: 'Missing shoes array' })
 
@@ -56,11 +56,11 @@ YOUR TASK:
 1. Review every shoe in the catalog above using your real knowledge of each model
 2. Pick the 10 shoes that are genuinely the best fit for this specific user
 3. Score each of your top 10 from 1-10 (10 = perfect fit, 1 = poor fit)
-4. Scores must be spread across the 1-10 range — do NOT give every shoe a 9 or 10
+4. Scores must be spread across the 1-10 range - do NOT give every shoe a 9 or 10
 5. Only one shoe can score a 10. At most two shoes can score a 9.
 6. Consider: does this exact model run true to width? Is it designed for these activities? Real user reviews? Cushioning for the use case?
 
-IMPORTANT: Your top 10 must be chosen because they genuinely suit this user — not just the first 10 in the list. A shoe at the bottom of the list might be a better fit than one at the top.
+IMPORTANT: Your top 10 must be chosen because they genuinely suit this user - not just the first 10 in the list. A shoe at the bottom of the list might be a better fit than one at the top.
 
 Return ONLY a JSON array, no other text:
 [{"id": <shoe_id>, "score": <1-10>}, ...]
@@ -109,7 +109,7 @@ Order the array from highest score to lowest.`
     }
   }
 
-  // ── EXPLAIN mode: explain why a shoe got its score ────────────────────
+  // -- EXPLAIN mode: explain why a shoe got its score --------------------
   if (mode === 'explain') {
     if (!shoe) return res.status(400).json({ error: 'Missing shoe' })
     if (score == null) return res.status(400).json({ error: 'Missing score' })
