@@ -15,7 +15,7 @@ interface Shoe {
 }
 
 
-// ── Search sanitization ───────────────────────────────────────────────────
+// -- Search sanitization ---------------------------------------------------
 const SEARCH_MAX_LENGTH = 50
 
 function sanitizeSearch(value: string): string {
@@ -38,6 +38,7 @@ export default function Navbar() {
   const [user, setUser] = useState<User | null>(null)
   const [loadingAuth, setLoadingAuth] = useState(true)
   const [accountOpen, setAccountOpen] = useState(false)
+  const [mobileOpen, setMobileOpen]   = useState(false)
 
   // Search
   const [query, setQuery] = useState('')
@@ -51,7 +52,7 @@ export default function Navbar() {
   const searchRef  = useRef<HTMLDivElement>(null)
   const accountRef = useRef<HTMLDivElement>(null)
 
-  // ── Auth ──────────────────────────────────────────────────────────────
+  // -- Auth --------------------------------------------------------------
   useEffect(() => {
     const init = async () => {
       const { data } = await supabase.auth.getUser()
@@ -66,13 +67,13 @@ export default function Navbar() {
     return () => data.subscription.unsubscribe()
   }, [])
 
-  // ── Load shoes for search ─────────────────────────────────────────────
+  // -- Load shoes for search ---------------------------------------------
   useEffect(() => {
     supabase.from('shoe').select('id, name, model_line, image_url, category_id, width')
       .then(({ data }) => { if (data) setAllShoes(data) })
   }, [])
 
-  // ── Wishlist count — fetch + re-fetch on wishlist-updated event ───────
+  // -- Wishlist count - fetch + re-fetch on wishlist-updated event -------
   const fetchWishlistCount = async (uid: string) => {
     const { count } = await supabase
       .from('wishlist')
@@ -91,7 +92,7 @@ export default function Navbar() {
     return () => window.removeEventListener('wishlist-updated', handler)
   }, [user])
 
-  // ── Suggestions ───────────────────────────────────────────────────────
+  // -- Suggestions -------------------------------------------------------
   useEffect(() => {
     const q = query.trim().toLowerCase()
     if (!q) { setSuggestions([]); setShowSuggestions(false); return }
@@ -104,7 +105,7 @@ export default function Navbar() {
     setShowSuggestions(true)
   }, [query, allShoes])
 
-  // ── Close on outside click ────────────────────────────────────────────
+  // -- Close on outside click --------------------------------------------
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (searchRef.current  && !searchRef.current.contains(e.target as Node))  setShowSuggestions(false)
@@ -134,15 +135,29 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="flex justify-between items-center px-8 py-4 border-b relative bg-white z-50">
+    <nav className="border-b bg-white z-50 relative">
+      <div className="flex justify-between items-center px-4 md:px-8 py-4">
 
       {/* Logo */}
       <h1 className="text-2xl font-bold w-32 shrink-0">
         <Link href="/">SoleMate</Link>
       </h1>
 
-      {/* Search — no filter button */}
-      <div className="flex items-center flex-1 max-w-xl mx-8">
+      {/* Hamburger - mobile only */}
+      <button className="md:hidden ml-auto mr-2" onClick={() => setMobileOpen(o => !o)} aria-label="Menu">
+        {mobileOpen ? (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
+          </svg>
+        ) : (
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
+          </svg>
+        )}
+      </button>
+
+      {/* Search - hidden on mobile, shown on md+ */}
+      <div className="hidden md:flex items-center flex-1 max-w-xl mx-8">
         <div ref={searchRef} className="relative w-full">
           <form onSubmit={handleSearchSubmit}>
             <div className="relative w-full">
@@ -232,8 +247,8 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Nav links + Account */}
-      <div className="flex gap-6 text-sm font-medium items-center w-48 justify-end shrink-0">
+      {/* Nav links + Account - hidden on mobile */}
+      <div className="hidden md:flex gap-6 text-sm font-medium items-center w-48 justify-end shrink-0">
         <Link href="/" className="hover:text-gray-500 transition">Home</Link>
         <Link href="/catalog" className="hover:text-gray-500 transition">Catalog</Link>
 
@@ -333,6 +348,74 @@ export default function Navbar() {
           </div>
         )}
       </div>
+      </div>
+
+      {/* Mobile search bar */}
+      <div className="md:hidden px-4 pb-3">
+        <div ref={searchRef} className="relative w-full">
+          <form onSubmit={handleSearchSubmit}>
+            <div className="relative w-full">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4 pointer-events-none"
+                fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+              </svg>
+              <input type="text" value={query}
+                onChange={e => setQuery(sanitizeSearch(e.target.value))}
+                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                placeholder="Search shoes..."
+                maxLength={SEARCH_MAX_LENGTH}
+                autoComplete="off"
+                className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg
+                           focus:outline-none focus:ring-2 focus:ring-black bg-gray-50" />
+              {query && (
+                <button type="button"
+                  onClick={() => { setQuery(''); setSuggestions([]); setShowSuggestions(false) }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </form>
+          {showSuggestions && suggestions.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200
+                            rounded-xl shadow-xl overflow-hidden z-50">
+              {suggestions.map(shoe => (
+                <button key={shoe.id} onMouseDown={() => handleSuggestionClick(shoe)}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-gray-50 border-b border-gray-50 last:border-0 text-left">
+                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
+                    {shoe.image_url && <img src={shoe.image_url} alt={shoe.name} className="w-full h-full object-contain p-1" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 truncate">{shoe.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{shoe.model_line}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Mobile menu */}
+      {mobileOpen && (
+        <div className="md:hidden border-t border-gray-100 px-4 py-4 space-y-2 bg-white">
+          <Link href="/" onClick={() => setMobileOpen(false)} className="block py-2 text-sm font-medium text-gray-700">Home</Link>
+          <Link href="/catalog" onClick={() => setMobileOpen(false)} className="block py-2 text-sm font-medium text-gray-700">Catalog</Link>
+          {user ? (
+            <>
+              <Link href="/wishlist" onClick={() => setMobileOpen(false)} className="block py-2 text-sm font-medium text-gray-700">Saved Shoes</Link>
+              <Link href="/recommendations" onClick={() => setMobileOpen(false)} className="block py-2 text-sm font-medium text-gray-700">My Recommendations</Link>
+              <Link href="/questionnaire" onClick={() => setMobileOpen(false)} className="block py-2 text-sm font-medium text-gray-700">Questionnaire</Link>
+              <Link href="/settings" onClick={() => setMobileOpen(false)} className="block py-2 text-sm font-medium text-gray-700">Account Settings</Link>
+              <button onClick={() => { handleLogout(); setMobileOpen(false) }} className="block py-2 text-sm font-medium text-red-500 w-full text-left">Logout</button>
+            </>
+          ) : (
+            <Link href="/login" onClick={() => setMobileOpen(false)} className="block py-2 text-sm font-medium text-gray-700">Login</Link>
+          )}
+        </div>
+      )}
     </nav>
   )
 }
