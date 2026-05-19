@@ -30,7 +30,7 @@ export default function ComparePage() {
   const [loading, setLoading]   = useState(true)
   const [userId, setUserId]     = useState<string | null>(null)
 
-  // Wishlist state per shoe — true=saved, false=not saved, null=loading
+  // Wishlist state per shoe - true=saved, false=not saved, null=loading
   const [wishlist, setWishlist] = useState<Record<number, boolean>>({})
   const [wishlistIds, setWishlistIds] = useState<Record<number, number>>({}) // wishlist row id per shoe
   const [savingId, setSavingId] = useState<number | null>(null)
@@ -134,14 +134,14 @@ export default function ComparePage() {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
 
-      <main className="max-w-5xl mx-auto px-6 py-10">
+      <main className="max-w-5xl mx-auto px-4 md:px-6 py-6 md:py-10">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold">Compare Shoes</h1>
             <p className="text-gray-400 text-sm mt-1">Comparing {shoes.length} shoes</p>
           </div>
-          {/* Change selection — passes current IDs back so catalog pre-selects them */}
+          {/* Change selection - passes current IDs back so catalog pre-selects them */}
           <Link
             href={`/catalog?compareIds=${ids}`}
             className="text-sm text-gray-500 hover:text-black transition flex items-center gap-1 border
