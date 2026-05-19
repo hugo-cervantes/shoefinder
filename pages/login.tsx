@@ -6,17 +6,17 @@ import Link from 'next/link'
 import { supabase } from '../lib/supabase'
 import Navbar from '../components/Navbar'
 
-// ── Config ────────────────────────────────────────────────────────────────
+// -- Config ----------------------------------------------------------------
 const FREE_ATTEMPTS     = 5      // no punishment for first 5 fails
 const RESET_AFTER_MS    = 30 * 60 * 1000  // reset attempt count after 30 min of inactivity
 
 // Lockout durations for attempts beyond FREE_ATTEMPTS (in seconds)
-// attempt 6 → 15s, 7 → 30s, 8 → 60s, 9 → 120s, 10+ → 300s
+// attempt 6 -> 15s, 7 -> 30s, 8 -> 60s, 9 -> 120s, 10+ -> 300s
 const LOCKOUT_SCHEDULE  = [15, 30, 60, 120, 300]
 
-// ── Input sanitization ────────────────────────────────────────────────────
+// -- Input sanitization ----------------------------------------------------
 function sanitizeEmail(value: string): string {
-  // Allow only valid email characters — strip anything suspicious
+  // Allow only valid email characters - strip anything suspicious
   return value
     .replace(/[<>"'%;()&+\\]/g, '')   // strip common injection chars
     .trim()
@@ -32,7 +32,7 @@ function sanitizePassword(value: string): string {
 }
 
 function isValidEmail(email: string): boolean {
-  // Basic email format check — not exhaustive but catches obvious bad input
+  // Basic email format check - not exhaustive but catches obvious bad input
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
@@ -45,7 +45,7 @@ export default function Login() {
   const [error, setError]       = useState<string | null>(null)
   const [loading, setLoading]   = useState(false)
 
-  // Brute force state — stored in refs so they survive re-renders but don't cause extra ones
+  // Brute force state - stored in refs so they survive re-renders but don't cause extra ones
   const attemptsRef     = useRef(0)
   const lastAttemptRef  = useRef<number | null>(null)  // timestamp of last failed attempt
   const [attempts, setAttempts] = useState(0)          // mirror for rendering
@@ -53,7 +53,7 @@ export default function Login() {
   const [lockedOut, setLockedOut] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // ── Attempt counter auto-reset after 30 min of no activity ───────────
+  // -- Attempt counter auto-reset after 30 min of no activity -----------
   const checkAndResetAttempts = () => {
     if (lastAttemptRef.current === null) return
     const elapsed = Date.now() - lastAttemptRef.current
@@ -65,7 +65,7 @@ export default function Login() {
     }
   }
 
-  // ── Countdown ticker ──────────────────────────────────────────────────
+  // -- Countdown ticker --------------------------------------------------
   useEffect(() => {
     if (cooldown <= 0) {
       setLockedOut(false)
@@ -76,21 +76,21 @@ export default function Login() {
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
   }, [cooldown])
 
-  // ── Handle email input ────────────────────────────────────────────────
+  // -- Handle email input ------------------------------------------------
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const sanitized = sanitizeEmail(e.target.value)
     setEmail(sanitized)
     if (!lockedOut) setError(null)
   }
 
-  // ── Handle password input ─────────────────────────────────────────────
+  // -- Handle password input ---------------------------------------------
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const sanitized = sanitizePassword(e.target.value)
     setPassword(sanitized)
     if (!lockedOut) setError(null)
   }
 
-  // ── Login handler ─────────────────────────────────────────────────────
+  // -- Login handler -----------------------------------------------------
   const handleLogin = async () => {
     if (lockedOut) return
 
@@ -128,15 +128,15 @@ export default function Login() {
       lastAttemptRef.current = Date.now()
 
       if (newAttempts <= FREE_ATTEMPTS) {
-        // ── Free attempts: just show remaining count, no lockout ──
+        // -- Free attempts: just show remaining count, no lockout --
         const remaining = FREE_ATTEMPTS - newAttempts
         if (remaining === 0) {
-          setError(`Incorrect email or password. This is your last free attempt — you will be locked out next time.`)
+          setError(`Incorrect email or password. This is your last free attempt - you will be locked out next time.`)
         } else {
           setError(`Incorrect email or password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining before lockout.`)
         }
       } else {
-        // ── Lockout phase: escalating wait times ──
+        // -- Lockout phase: escalating wait times --
         const lockoutIndex = Math.min(newAttempts - FREE_ATTEMPTS - 1, LOCKOUT_SCHEDULE.length - 1)
         const waitSeconds  = LOCKOUT_SCHEDULE[lockoutIndex]
         setCooldown(waitSeconds)
@@ -147,7 +147,7 @@ export default function Login() {
       return
     }
 
-    // ── Success ──
+    // -- Success --
     attemptsRef.current  = 0
     lastAttemptRef.current = null
     setAttempts(0)
@@ -235,7 +235,7 @@ export default function Login() {
           {lockedOut && cooldown > 0 && (
             <div className="mb-3">
               <div className="flex justify-between text-xs text-orange-500 mb-1">
-                <span>🔒 Locked out</span>
+                <span> Locked out</span>
                 <span>{cooldown}s remaining</span>
               </div>
               <div className="w-full bg-orange-100 rounded-full h-1.5">
@@ -256,14 +256,14 @@ export default function Login() {
             {loading ? 'Logging in...' : lockedOut ? `Wait ${cooldown}s` : 'Login'}
           </button>
 
-          {/* ── Divider ── */}
+          {/* -- Divider -- */}
           <div className="flex items-center gap-3 my-4">
             <div className="flex-1 h-px bg-gray-200" />
             <span className="text-xs text-gray-400">or</span>
             <div className="flex-1 h-px bg-gray-200" />
           </div>
 
-          {/* ── Google Sign In ── */}
+          {/* -- Google Sign In -- */}
           <button
             onClick={async () => {
               await supabase.auth.signInWithOAuth({
