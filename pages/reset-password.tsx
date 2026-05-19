@@ -19,7 +19,7 @@ export default function ResetPassword() {
   const [validSession, setValidSession] = useState(false)
   const [checking,     setChecking]     = useState(true)
 
-  // ── Supabase sends the token in the URL hash — exchange it for a session
+  // -- Supabase sends the token in the URL hash - exchange it for a session
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
@@ -45,7 +45,7 @@ export default function ResetPassword() {
     const { error } = await supabase.auth.updateUser({ password: newPassword })
 
     if (error) {
-      setError('Failed to reset password. Your link may have expired — request a new one.')
+      setError('Failed to reset password. Your link may have expired - request a new one.')
       setLoading(false)
       return
     }
@@ -58,7 +58,7 @@ export default function ResetPassword() {
     `w-full border p-2 rounded-lg text-sm transition focus:outline-none focus:ring-2 focus:ring-black
      ${hasError ? 'border-red-400 bg-red-50' : 'border-gray-200'}`
 
-  // ── Checking session ──────────────────────────────────────────────────
+  // -- Checking session --------------------------------------------------
   if (checking) return (
     <div><Navbar />
       <div className="flex justify-center items-center h-[70vh]">
@@ -67,7 +67,7 @@ export default function ResetPassword() {
     </div>
   )
 
-  // ── Invalid / expired link ────────────────────────────────────────────
+  // -- Invalid / expired link --------------------------------------------
   if (!validSession && !checking) return (
     <div><Navbar />
       <div className="flex justify-center items-center h-[70vh]">
@@ -90,7 +90,7 @@ export default function ResetPassword() {
     </div>
   )
 
-  // ── Success ───────────────────────────────────────────────────────────
+  // -- Success -----------------------------------------------------------
   if (success) return (
     <div><Navbar />
       <div className="flex justify-center items-center h-[70vh]">
