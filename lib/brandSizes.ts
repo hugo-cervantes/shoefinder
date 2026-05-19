@@ -1,8 +1,8 @@
 // lib/brandSizes.ts
-// ── Brand size conversion utility ─────────────────────────────────────────
+// -- Brand size conversion utility -----------------------------------------
 // Offset = how much to ADD to get from that brand to Nike baseline
 // Nike is the baseline (offset 0)
-// e.g. Adidas runs 0.5 large → to get Nike equivalent, add 0.5
+// e.g. Adidas runs 0.5 large -> to get Nike equivalent, add 0.5
 
 export const BRANDS = [
   { key: 'nike',       label: 'Nike',        offset: 0,    domain: 'nike.com' },
@@ -15,14 +15,14 @@ export const BRANDS = [
 export type BrandKey = (typeof BRANDS)[number]['key']
 export type BrandSizes = Partial<Record<BrandKey, number>>
 
-// Convert a known brand size → Nike baseline
+// Convert a known brand size -> Nike baseline
 export function toNikeSize(size: number, fromBrand: BrandKey): number {
   const brand = BRANDS.find(b => b.key === fromBrand)
   if (!brand) return size
   return Math.round((size + brand.offset) * 2) / 2
 }
 
-// Convert Nike baseline → target brand size
+// Convert Nike baseline -> target brand size
 export function fromNikeSize(nikeSize: number, toBrand: BrandKey): number {
   const brand = BRANDS.find(b => b.key === toBrand)
   if (!brand) return nikeSize
