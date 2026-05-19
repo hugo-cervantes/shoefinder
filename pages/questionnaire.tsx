@@ -7,10 +7,10 @@ import { BRANDS, BrandKey, BrandSizes, toNikeSize } from "../lib/brandSizes";
 const BRAND_SIZE_OPTIONS = Array.from({ length: 29 }, (_, i) => +(4 + i * 0.5).toFixed(1))
 
 const ACTIVITIES = [
-  { id: 1, label: "Running",  emoji: "🏃" },
-  { id: 2, label: "Casual",   emoji: "👟" },
-  { id: 3, label: "Sports",   emoji: "⚽" },
-  { id: 4, label: "Hiking",   emoji: "🥾" },
+  { id: 1, label: "Running",  emoji: "" },
+  { id: 2, label: "Casual",   emoji: "" },
+  { id: 3, label: "Sports",   emoji: "" },
+  { id: 4, label: "Hiking",   emoji: "" },
 ]
 
 const WIDTHS = [
@@ -45,7 +45,7 @@ export default function Questionnaire() {
     )
   }, [])
 
-  // ── Activity toggles ──────────────────────────────────────────────────
+  // -- Activity toggles --------------------------------------------------
   const toggleActivity = (id: number) => {
     setSelectedCategories(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
@@ -62,7 +62,7 @@ export default function Questionnaire() {
 
   const allActivitiesSelected = selectedCategories.length === ALL_ACTIVITY_IDS.length
 
-  // ── Width toggles ─────────────────────────────────────────────────────
+  // -- Width toggles -----------------------------------------------------
   const toggleWidth = (value: string) => {
     setSelectedWidths(prev =>
       prev.includes(value) ? prev.filter(x => x !== value) : [...prev, value]
@@ -79,7 +79,7 @@ export default function Questionnaire() {
 
   const allWidthsSelected = selectedWidths.length === ALL_WIDTH_VALUES.length
 
-  // ── Brand toggles ─────────────────────────────────────────────────────
+  // -- Brand toggles -----------------------------------------------------
   const toggleBrand = (key: BrandKey) => {
     setActiveBrands(prev =>
       prev.includes(key) ? prev.filter(b => b !== key) : [...prev, key]
@@ -93,7 +93,7 @@ export default function Questionnaire() {
     setBrandSizes(prev => ({ ...prev, [key]: size === "" ? undefined : size }))
   }
 
-  // ── Submit ────────────────────────────────────────────────────────────
+  // -- Submit ------------------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!userId)                        { console.error("Not logged in"); return }
@@ -150,10 +150,10 @@ export default function Questionnaire() {
   return (
     <div>
       <Navbar />
-      <section className="min-h-[80vh] flex items-center justify-center bg-gray-100 p-6">
+      <section className="min-h-[80vh] flex items-center justify-center bg-gray-100 p-4 md:p-6">
         <form
           onSubmit={handleSubmit}
-          className="w-full max-w-xl bg-white p-8 rounded-2xl shadow-md space-y-6"
+          className="w-full max-w-xl bg-white p-5 md:p-8 rounded-2xl shadow-md space-y-6"
         >
           <h1 className="text-3xl font-bold text-center">Shoe Fit Questionnaire</h1>
 
@@ -211,7 +211,7 @@ export default function Questionnaire() {
             )}
           </div>
 
-          {/* ── Width — multi-select ── */}
+          {/* -- Width - multi-select -- */}
           <div>
             <label className="block font-medium mb-1">Width</label>
             <p className="text-xs text-gray-400 mb-3">Select all that apply.</p>
@@ -239,7 +239,7 @@ export default function Questionnaire() {
             )}
           </div>
 
-          {/* ── Activity — multi-select ── */}
+          {/* -- Activity - multi-select -- */}
           <div>
             <label className="block font-medium mb-1">Activity</label>
             <p className="text-xs text-gray-400 mb-3">Select all that apply.</p>
