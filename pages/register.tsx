@@ -6,7 +6,7 @@ import { register } from '../lib/supabase'
 import Navbar from '../components/Navbar'
 import Link from 'next/link'
 
-// ── Sanitization ──────────────────────────────────────────────────────────
+// -- Sanitization ----------------------------------------------------------
 function sanitizeName(value: string): string {
   return value
     .replace(/[<>"'%;()&+\\0-9]/g, '')  // no numbers or injection chars in names
@@ -26,13 +26,13 @@ function sanitizePassword(value: string): string {
     .slice(0, 128)
 }
 
-// ── Validation ────────────────────────────────────────────────────────────
+// -- Validation ------------------------------------------------------------
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
 function getPasswordStrength(password: string): {
-  score: number       // 0–4
+  score: number       // 0-4
   label: string
   color: string
   feedback: string | null
@@ -53,7 +53,7 @@ function getPasswordStrength(password: string): {
     { label: 'Too short',  color: 'bg-red-400',    feedback: 'Use at least 8 characters.' },
     { label: 'Weak',       color: 'bg-red-400',    feedback: 'Add uppercase and lowercase letters.' },
     { label: 'Fair',       color: 'bg-yellow-400', feedback: 'Add numbers or symbols to strengthen it.' },
-    { label: 'Good',       color: 'bg-blue-400',   feedback: 'Almost there — try adding a symbol.' },
+    { label: 'Good',       color: 'bg-blue-400',   feedback: 'Almost there - try adding a symbol.' },
     { label: 'Strong',     color: 'bg-green-400',  feedback: null },
   ]
 
@@ -82,7 +82,7 @@ export default function Register() {
 
   const passwordStrength = getPasswordStrength(password)
 
-  // ── Validate all fields ───────────────────────────────────────────────
+  // -- Validate all fields -----------------------------------------------
   const validate = (): FieldErrors => {
     const e: FieldErrors = {}
 
@@ -111,7 +111,7 @@ export default function Register() {
     return e
   }
 
-  // ── Submit ────────────────────────────────────────────────────────────
+  // -- Submit ------------------------------------------------------------
   const handleRegister = async () => {
     const validationErrors = validate()
     if (Object.keys(validationErrors).length > 0) {
@@ -161,7 +161,7 @@ export default function Register() {
        : 'border-gray-200 focus:ring-black'
      }`
 
-  // ── Success state ─────────────────────────────────────────────────────
+  // -- Success state -----------------------------------------------------
   if (success) {
     return (
       <div>
