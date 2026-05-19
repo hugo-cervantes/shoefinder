@@ -99,13 +99,13 @@ export default function WishlistPage() {
     setEntries((prev) => prev.filter((e) => e.id !== wishlistId));
   };
 
-  // ── Not logged in ─────────────────────────────────────────────────────
+  // -- Not logged in -----------------------------------------------------
   if (notLoggedIn) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         <div className="max-w-md mx-auto mt-20 bg-white rounded-2xl p-10 shadow text-center">
-          <p className="text-4xl mb-4">🤍</p>
+          <p className="text-4xl mb-4"></p>
           <h2 className="text-2xl font-semibold mb-3">Sign in to view your wishlist</h2>
           <p className="text-gray-500 mb-6">Save shoes you love and come back to them anytime.</p>
           <Link
@@ -143,7 +143,7 @@ export default function WishlistPage() {
         {/* Empty state */}
         {!loading && entries.length === 0 && (
           <div className="bg-white rounded-2xl p-14 shadow-sm text-center">
-            <p className="text-5xl mb-4">🤍</p>
+            <p className="text-5xl mb-4"></p>
             <h2 className="text-xl font-semibold mb-2">Your wishlist is empty</h2>
             <p className="text-gray-500 mb-6">
               Browse the catalog and tap the heart on any shoe to save it here.
