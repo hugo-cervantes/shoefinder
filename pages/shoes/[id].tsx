@@ -197,12 +197,12 @@ export default function ShoePage() {
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
-      <div className="px-6 py-10 max-w-5xl mx-auto">
+      <div className="px-4 md:px-6 py-6 md:py-10 max-w-5xl mx-auto">
         <Link href="/catalog" className="text-sm text-gray-500 hover:text-black transition">
           Back to catalog
         </Link>
 
-        <div className="grid md:grid-cols-2 gap-10 mt-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10 mt-6">
           <div className="bg-gray-100 rounded-2xl aspect-square flex items-center justify-center overflow-hidden">
             <img src={shoe.image_url} alt={shoe.name} className="w-full h-full object-contain p-8" />
           </div>
@@ -283,7 +283,7 @@ export default function ShoePage() {
         {similarShoes.length > 0 && (
           <div className="mt-14">
             <h2 className="text-xl font-semibold mb-5">You Might Also Like</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-5">
               {similarShoes.map(s => (
                 <Link key={s.id} href={"/shoes/" + s.id}
                   className="group bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition overflow-hidden">
