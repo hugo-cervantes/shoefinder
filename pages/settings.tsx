@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import Link from 'next/link'
 import { BRANDS, BrandKey, BrandSizes } from '../lib/brandSizes'
 
-// ── Sanitization (same as register) ──────────────────────────────────────
+// -- Sanitization (same as register) --------------------------------------
 function sanitizeName(value: string): string {
   return value.replace(/[<>"'%;()&+\\0-9]/g, '').slice(0, 50)
 }
@@ -59,7 +59,7 @@ export default function AccountSettings() {
 
   const BRAND_SIZE_OPTIONS = Array.from({ length: 29 }, (_, i) => +(4 + i * 0.5).toFixed(1))
 
-  // ── Load current user data ──────────────────────────────────────────
+  // -- Load current user data ------------------------------------------
   useEffect(() => {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -90,7 +90,7 @@ export default function AccountSettings() {
     load()
   }, [])
 
-  // ── Save brand sizes ──────────────────────────────────────────────────
+  // -- Save brand sizes --------------------------------------------------
   const handleSaveBrandSizes = async () => {
     setBrandError(null)
     setBrandSave('saving')
@@ -130,7 +130,7 @@ export default function AccountSettings() {
     setBrandSizes(prev => ({ ...prev, [key]: size === '' ? undefined : size }))
   }
 
-  // ── Save name ─────────────────────────────────────────────────────────
+  // -- Save name ---------------------------------------------------------
   const handleSaveName = async () => {
     setNameError(null)
 
@@ -161,7 +161,7 @@ export default function AccountSettings() {
     }
   }
 
-  // ── Save email ────────────────────────────────────────────────────────
+  // -- Save email --------------------------------------------------------
   const handleSaveEmail = async () => {
     setEmailError(null)
 
@@ -193,7 +193,7 @@ export default function AccountSettings() {
     setTimeout(() => setEmailSave('idle'), 3000)
   }
 
-  // ── Save password ─────────────────────────────────────────────────────
+  // -- Save password -----------------------------------------------------
   const handleSavePassword = async () => {
     setPasswordError(null)
 
@@ -235,10 +235,10 @@ export default function AccountSettings() {
     }
   }
 
-  // ── Reusable status button label ──────────────────────────────────────
+  // -- Reusable status button label --------------------------------------
   const btnLabel = (state: SaveState, idle: string) => {
     if (state === 'saving') return 'Saving...'
-    if (state === 'saved')  return '✓ Saved'
+    if (state === 'saved')  return ' Saved'
     return idle
   }
 
@@ -255,7 +255,7 @@ export default function AccountSettings() {
     `w-full border p-2 rounded-lg text-sm transition focus:outline-none focus:ring-2
      ${hasError ? 'border-red-400 bg-red-50 focus:ring-red-300' : 'border-gray-200 focus:ring-black'}`
 
-  // ── Delete account ────────────────────────────────────────────────────
+  // -- Delete account ----------------------------------------------------
   const handleDeleteAccount = async () => {
     setDeleteError(null)
 
@@ -324,7 +324,7 @@ export default function AccountSettings() {
       <main className="max-w-xl mx-auto px-6 py-10">
         <h1 className="text-3xl font-bold mb-8">Account Settings</h1>
 
-        {/* ── Name ── */}
+        {/* -- Name -- */}
         <section className="bg-white rounded-2xl p-6 shadow-sm mb-4">
           <h2 className="text-base font-semibold mb-4">Name</h2>
 
@@ -362,7 +362,7 @@ export default function AccountSettings() {
           </div>
         </section>
 
-        {/* ── Email ── */}
+        {/* -- Email -- */}
         <section className="bg-white rounded-2xl p-6 shadow-sm mb-4">
           <h2 className="text-base font-semibold mb-4">Email Address</h2>
 
@@ -393,7 +393,7 @@ export default function AccountSettings() {
           </div>
         </section>
 
-        {/* ── Password ── */}
+        {/* -- Password -- */}
         <section className="bg-white rounded-2xl p-6 shadow-sm">
           <h2 className="text-base font-semibold mb-4">Change Password</h2>
 
@@ -440,11 +440,11 @@ export default function AccountSettings() {
           </div>
         </section>
 
-        {/* ── Brand Sizes ── */}
+        {/* -- Brand Sizes -- */}
         <section className="bg-white rounded-2xl p-6 shadow-sm mb-4">
           <h2 className="text-base font-semibold mb-1">Brand Sizes</h2>
           <p className="text-sm text-gray-400 mb-4">
-            Enter your size for each brand you own shoes from — we'll auto-fill your size when you visit their site.
+            Enter your size for each brand you own shoes from - we'll auto-fill your size when you visit their site.
           </p>
 
           {/* Brand toggle pills */}
@@ -495,7 +495,7 @@ export default function AccountSettings() {
           </div>
         </section>
 
-        {/* ── Danger Zone: Delete Account ── */}
+        {/* -- Danger Zone: Delete Account -- */}
         <section className="bg-white rounded-2xl p-6 shadow-sm border border-red-100 mt-4">
           <h2 className="text-base font-semibold text-red-600 mb-1">Danger Zone</h2>
           <p className="text-sm text-gray-400 mb-4">
