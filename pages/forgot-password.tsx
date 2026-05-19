@@ -31,7 +31,7 @@ export default function ForgotPassword() {
       { redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password` }
     )
 
-    // Don't reveal whether the email exists or not — always show success
+    // Don't reveal whether the email exists or not - always show success
     // This prevents email enumeration attacks
     if (error) console.error('Reset error:', error.message)
 
@@ -39,7 +39,7 @@ export default function ForgotPassword() {
     setSent(true)
   }
 
-  // ── Sent state ────────────────────────────────────────────────────────
+  // -- Sent state --------------------------------------------------------
   if (sent) {
     return (
       <div>
@@ -58,7 +58,7 @@ export default function ForgotPassword() {
               we've sent a password reset link. Check your inbox and spam folder.
             </p>
             <Link href="/login" className="text-sm text-black underline hover:text-gray-600 transition">
-              ← Back to login
+              <- Back to login
             </Link>
           </div>
         </div>
@@ -115,7 +115,7 @@ export default function ForgotPassword() {
 
           <p className="text-sm text-center mt-4">
             <Link href="/login" className="text-gray-400 hover:text-black transition">
-              ← Back to login
+              <- Back to login
             </Link>
           </p>
         </div>
